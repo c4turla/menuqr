@@ -30,7 +30,8 @@ export default async function QrPage({ params }: Props) {
   const protocol = headersList.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
   
   // Gunakan APP_URL/BETTER_AUTH_URL runtime, atau fallback ke host dari request headers
-  const baseUrl = process.env.APP_URL || process.env.BETTER_AUTH_URL || `${protocol}://${host}`;
+  const baseUrlRaw = process.env.APP_URL || process.env.BETTER_AUTH_URL || `${protocol}://${host}`;
+  const baseUrl = baseUrlRaw.endsWith('/') ? baseUrlRaw.slice(0, -1) : baseUrlRaw;
   const menuUrl = `${baseUrl}/r/${restaurant.slug}`;
 
   return (
