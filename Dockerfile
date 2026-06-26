@@ -13,16 +13,13 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate build (env vars dibutuhkan saat build untuk Next.js)
-ARG DATABASE_URL
-ARG BETTER_AUTH_SECRET
-ARG BETTER_AUTH_URL
-ARG NEXT_PUBLIC_APP_URL
-
-ENV DATABASE_URL=$DATABASE_URL
-ENV BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET
-ENV BETTER_AUTH_URL=$BETTER_AUTH_URL
-ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+# Env vars saat build — pakai placeholder agar Next.js tidak crash saat prerender
+# Nilai sesungguhnya diset di runtime via docker-compose
+ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
+ENV BETTER_AUTH_SECRET="placeholder-secret-for-build-only-32chars!!"
+ENV BETTER_AUTH_URL="http://localhost:3000"
+ENV NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
@@ -31,17 +28,18 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Buat user non-root untuk keamanan
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
 
-# Copy file yang dibutuhkan dari builder
+# Copy public assets dan drizzle migrations
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/package.json ./package.json
 
-# Copy Next.js build output
+# Copy Next.js standalone build output
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
