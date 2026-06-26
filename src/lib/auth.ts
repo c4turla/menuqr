@@ -5,6 +5,9 @@ import * as schema from "@/db/schema";
 import { sendEmail } from "@/lib/mail";
 
 export const auth = betterAuth({
+  // Eksplisit set secret dan baseURL dari env vars
+  secret: process.env.BETTER_AUTH_SECRET,
+  baseURL: process.env.BETTER_AUTH_URL,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema,
@@ -45,7 +48,14 @@ export const auth = betterAuth({
     expiresIn: 30 * 24 * 60 * 60,
     updateAge: 24 * 60 * 60,
   },
-  trustedOrigins: ["http://localhost:3002", "http://localhost:3001", "http://localhost:3000"],
+  trustedOrigins: [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    // Otomatis trust BETTER_AUTH_URL & APP_URL jika di-set (VPS/production)
+    ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
+    ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
+  ],
   advanced: {
     database: {
       generateId: () => crypto.randomUUID(),
