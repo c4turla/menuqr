@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1075.0",
     "@base-ui/react": "^1.6.0",
     "@better-auth/sso": "^1.6.20",
     "@hookform/resolvers": "^5.4.0",
