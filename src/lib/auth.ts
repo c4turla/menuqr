@@ -15,6 +15,24 @@ export const auth = betterAuth({
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url }) => {
+      // Extract the token query parameter from the verification URL
+      try {
+        const parsedUrl = new URL(url);
+        const token = parsedUrl.searchParams.get("token");
+        if (token) {
+          // Write the token to the verifications table so the sandbox settings UI can read it
+          await db.insert(schema.verification).values({
+            id: crypto.randomUUID(),
+            identifier: user.email,
+            value: token,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+            createdAt: new Date(),
+          });
+        }
+      } catch (err) {
+        console.error("Failed to store verification token in DB:", err);
+      }
+
       await sendEmail({
         to: user.email,
         subject: "Verify your email - MenuQR",

@@ -1,13 +1,13 @@
 "use server";
 
 import { db } from "@/db";
-import { menuItems, restaurants } from "@/db/schema";
+import { menuItems, restaurants, staff } from "@/db/schema";
 import { getSession } from "@/server/services/auth-service";
 import {
   createMenuItemSchema,
   updateMenuItemSchema,
 } from "@/features/menu/menu.schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, count } from "drizzle-orm";
 
 async function verifyRestaurantOwnership(restaurantId: string) {
   const session = await getSession();
@@ -20,9 +20,13 @@ async function verifyRestaurantOwnership(restaurantId: string) {
     .limit(1);
 
   if (!restaurant) throw new Error("Restaurant not found");
-  
+
+  const staffCheck = await db.query.staff.findFirst({
+    where: and(eq(staff.restaurantId, restaurantId), eq(staff.userId, session.user.id)),
+  });
+
   const isSuperAdmin = (session.user as { role?: string })?.role === "super_admin";
-  if (!isSuperAdmin && restaurant.ownerId !== session.user.id) {
+  if (!isSuperAdmin && restaurant.ownerId !== session.user.id && !staffCheck) {
     throw new Error("Forbidden");
   }
 
@@ -41,7 +45,19 @@ async function getMenuItemOrThrow(id: string, restaurantId: string) {
 }
 
 export async function createMenuItem(restaurantId: string, data: unknown) {
-  await verifyRestaurantOwnership(restaurantId);
+  const restaurant = await verifyRestaurantOwnership(restaurantId);
+
+  // Check plan limits
+  if (restaurant.plan === "free") {
+    const [countResult] = await db
+      .select({ value: count() })
+      .from(menuItems)
+      .where(eq(menuItems.restaurantId, restaurantId));
+
+    if (countResult.value >= 5) {
+      throw new Error("ERR_LIMIT_MENU_FREE");
+    }
+  }
 
   const parsed = createMenuItemSchema.parse(data);
 

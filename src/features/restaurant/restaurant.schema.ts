@@ -14,6 +14,9 @@ export const updateRestaurantSchema = z.object({
   phone: z.string().optional(),
   whatsapp_number: z.string().optional(),
   address: z.string().optional(),
+  logo_url: z.string().optional().nullable(),
+  cover_url: z.string().optional().nullable(),
+  theme_primary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Must be a valid hex color").optional().nullable(),
 });
 
 export type CreateRestaurantInput = z.infer<typeof createRestaurantSchema>;

@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { restaurants } from "@/db/schema/restaurants";
 import { getSession } from "@/server/services/auth-service";
 import { createRestaurantSchema, updateRestaurantSchema } from "@/features/restaurant/restaurant.schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 
 function generateSlug(name: string): string {
   return name
@@ -25,6 +25,28 @@ export async function createRestaurant(
   const parsed = createRestaurantSchema.safeParse(data);
   if (!parsed.success) {
     return { error: parsed.error.issues.map((e) => e.message).join(", ") };
+  }
+
+  // Check limits: Free and Basic can only have 1 restaurant
+  const [userRestaurantsCount] = await db
+    .select({ value: count() })
+    .from(restaurants)
+    .where(eq(restaurants.ownerId, session.user.id));
+
+  if (userRestaurantsCount.value >= 1) {
+    // If the user already has a restaurant, we need to check their highest plan
+    // Since plans are per-restaurant in this schema, if they have ANY restaurant,
+    // they can't create another one UNLESS they have at least one PRO plan
+    const userRestos = await db
+      .select({ plan: restaurants.plan })
+      .from(restaurants)
+      .where(eq(restaurants.ownerId, session.user.id));
+    
+    const hasProPlan = userRestos.some(r => r.plan === "pro");
+    
+    if (!hasProPlan) {
+      return { error: "ERR_LIMIT_OUTLET" };
+    }
   }
 
   const { name, description, phone, whatsapp_number, address } = parsed.data;
@@ -80,6 +102,27 @@ export async function updateRestaurant(
   if (parsed.data.phone !== undefined) updateData.phone = parsed.data.phone;
   if (parsed.data.whatsapp_number !== undefined) updateData.whatsappNumber = parsed.data.whatsapp_number;
   if (parsed.data.address !== undefined) updateData.address = parsed.data.address;
+
+  const isPremium = existing.plan === "basic" || existing.plan === "pro" || isSuperAdmin;
+  if (parsed.data.logo_url !== undefined) {
+    if (!isPremium) {
+      return { error: "ERR_LOGOCOVER_FEATURE_LOCKED" };
+    }
+    updateData.logoUrl = parsed.data.logo_url;
+  }
+  if (parsed.data.cover_url !== undefined) {
+    if (!isPremium) {
+      return { error: "ERR_LOGOCOVER_FEATURE_LOCKED" };
+    }
+    updateData.coverUrl = parsed.data.cover_url;
+  }
+
+  if (parsed.data.theme_primary_color !== undefined) {
+    if (existing.plan !== "pro" && !isSuperAdmin) {
+      return { error: "ERR_THEME_PRO_ONLY" };
+    }
+    updateData.themePrimaryColor = parsed.data.theme_primary_color;
+  }
 
   if (Object.keys(updateData).length === 0) {
     return { error: "No fields to update" };

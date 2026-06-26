@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { menuItems, categories, restaurants } from "@/db/schema";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, desc, asc } from "drizzle-orm";
 
 export async function getMenuItemsByRestaurant(restaurantId: string) {
   return db
@@ -53,6 +53,6 @@ export async function getMenuItemsPublic(restaurantSlug: string) {
     .from(menuItems)
     .innerJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
     .leftJoin(categories, eq(menuItems.categoryId, categories.id))
-    .where(and(eq(restaurants.slug, restaurantSlug), eq(menuItems.available, true)))
-    .orderBy(desc(menuItems.featured), asc(menuItems.name));
+    .where(eq(restaurants.slug, restaurantSlug))
+    .orderBy(desc(menuItems.featured), desc(menuItems.available), asc(menuItems.name));
 }

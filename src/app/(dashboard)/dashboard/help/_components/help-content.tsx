@@ -257,7 +257,7 @@ export function HelpContent() {
   }
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="space-y-8 w-full">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-extrabold text-neutral-900 dark:text-white tracking-tight">

@@ -1,10 +1,10 @@
 "use server";
 
 import { db } from "@/db";
-import { categories, restaurants } from "@/db/schema";
+import { categories, restaurants, staff } from "@/db/schema";
 import { getSession } from "@/server/services/auth-service";
 import { createCategorySchema, updateCategorySchema } from "@/features/category/category.schema";
-import { eq, count } from "drizzle-orm";
+import { eq, count, and } from "drizzle-orm";
 import { getCategoryById } from "@/server/queries/category-queries";
 
 async function verifyRestaurantOwnership(restaurantId: string) {
@@ -19,8 +19,12 @@ async function verifyRestaurantOwnership(restaurantId: string) {
 
   if (!restaurant) throw new Error("Restaurant not found");
 
+  const staffCheck = await db.query.staff.findFirst({
+    where: and(eq(staff.restaurantId, restaurantId), eq(staff.userId, session.user.id)),
+  });
+
   const isSuperAdmin = (session.user as { role?: string })?.role === "super_admin";
-  if (!isSuperAdmin && restaurant.ownerId !== session.user.id) {
+  if (!isSuperAdmin && restaurant.ownerId !== session.user.id && !staffCheck) {
     throw new Error("Forbidden");
   }
 
@@ -28,7 +32,19 @@ async function verifyRestaurantOwnership(restaurantId: string) {
 }
 
 export async function createCategory(restaurantId: string, data: unknown) {
-  await verifyRestaurantOwnership(restaurantId);
+  const restaurant = await verifyRestaurantOwnership(restaurantId);
+
+  // Check plan limits
+  if (restaurant.plan === "free") {
+    const [countResult] = await db
+      .select({ value: count() })
+      .from(categories)
+      .where(eq(categories.restaurantId, restaurantId));
+
+    if (countResult.value >= 2) {
+      throw new Error("ERR_LIMIT_CATEGORY_FREE");
+    }
+  }
 
   const parsed = createCategorySchema.parse(data);
 

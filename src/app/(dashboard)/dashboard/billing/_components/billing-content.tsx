@@ -29,12 +29,27 @@ const billingTranslations = {
     activeTrialTitle: "Restoran Aktif Uji Coba",
     activeTrialDesc: "Pilih restoran untuk disimulasikan plan berlangganannya.",
     restoLabel: "Restoran",
-    monthly: "Bulanan",
-    yearly: "Tahunan",
-    save20: "Hemat 20%",
-    freePlanDesc: "Mulai dengan fitur dasar.",
-    basicPlanDesc: "Untuk bisnis yang berkembang.",
-    proPlanDesc: "Untuk bisnis yang sudah mapan.",
+    pricingToggleMonthly: "Bulanan",
+    pricingToggleYearly: "Tahunan",
+    pricingSave: "Hemat 20%",
+    freeName: "Gratis Selamanya",
+    freePrice: "Rp 0",
+    freeDesc: "Cocok untuk kedai kecil atau uji coba.",
+    freeFeatures: ["1 Outlet / Restoran", "Maksimal 5 Menu", "Maksimal 2 Kategori", "QR Code Standar", "Pemesanan via WhatsApp"],
+    basicName: "Basic",
+    basicBadge: "Paling Populer",
+    basicPrice: "Rp 50.000",
+    basicPriceYearly: "Rp 40.000",
+    basicPeriod: "/bulan",
+    basicDesc: "Untuk kafe & restoran yang sedang berkembang.",
+    basicFeatures: ["1 Outlet / Restoran", "Menu & Kategori Tanpa Batas", "Pemesanan via WhatsApp / POS", "Manajemen Pesanan Real Time", "Notifikasi Suara Masuk"],
+    proName: "Pro",
+    proBadge: "Skala Besar",
+    proPrice: "Rp 150.000",
+    proPriceYearly: "Rp 120.000",
+    proPeriod: "/bulan",
+    proDesc: "Untuk franchise atau restoran multi-cabang.",
+    proFeatures: ["Cabang/Outlet Tanpa Batas", "Menu & Kategori Tanpa Batas", "Pemesanan via WhatsApp / POS", "Manajemen Pesanan Real Time", "Analisa Data Tingkat Lanjut ", "Notifikasi Suara Masuk", "Dukungan Prioritas 24/7"],
     freeForever: "Gratis selamanya",
     billedMonthly: "ditagih bulanan",
     activeBadge: "Aktif",
@@ -50,31 +65,6 @@ const billingTranslations = {
     upgradingPlan: "Memperbarui plan restoran ke {plan}...",
     upgradeSuccess: "Berhasil memperbarui plan {name} ke paket {plan}!",
     upgradeError: "Gagal memperbarui plan",
-    freeFeatures: [
-      "Hingga 1 restoran",
-      "Hingga 5 kategori",
-      "Hingga 20 menu makanan",
-      "QR code dasar",
-      "Dukungan komunitas",
-    ],
-    basicFeatures: [
-      "Hingga 3 restoran",
-      "Kategori tidak terbatas",
-      "Menu makanan tidak terbatas",
-      "Kustomisasi desain QR code",
-      "Pemesanan via Meja & QR Table",
-      "Dukungan email",
-    ],
-    proFeatures: [
-      "Restoran tidak terbatas",
-      "Kategori tidak terbatas",
-      "Menu makanan tidak terbatas",
-      "Kustomisasi desain QR code",
-      "Pemesanan via Meja & QR Table",
-      "Dukungan prioritas",
-      "Dashboard analitik",
-      "Domain kustom",
-    ],
   },
   en: {
     pageTitle: "Billing & Subscriptions",
@@ -86,12 +76,27 @@ const billingTranslations = {
     activeTrialTitle: "Active Trial Restaurant",
     activeTrialDesc: "Select a restaurant to simulate its subscription plan.",
     restoLabel: "Restaurant",
-    monthly: "Monthly",
-    yearly: "Yearly",
-    save20: "Save 20%",
-    freePlanDesc: "Start with basic features.",
-    basicPlanDesc: "For growing businesses.",
-    proPlanDesc: "For established businesses.",
+    pricingToggleMonthly: "Monthly",
+    pricingToggleYearly: "Yearly",
+    pricingSave: "Save 20%",
+    freeName: "Free Forever",
+    freePrice: "$0",
+    freeDesc: "Perfect for small food stalls or trials.",
+    freeFeatures: ["1 Outlet / Restaurant", "Up to 5 Menu Items", "Up to 2 Categories", "Standard QR Code", "WhatsApp Checkout"],
+    basicName: "Basic",
+    basicBadge: "Most Popular",
+    basicPrice: "$4.99",
+    basicPriceYearly: "$3.99",
+    basicPeriod: "/mo",
+    basicDesc: "For growing cafes & restaurants.",
+    basicFeatures: ["1 Outlet / Restaurant", "Unlimited Menu Items", "WhatsApp Checkout / POS", "Order Management Real Time", "Live Sound Notifications"],
+    proName: "Pro",
+    proBadge: "Large Scale",
+    proPrice: "$12.99",
+    proPriceYearly: "$9.99",
+    proPeriod: "/mo",
+    proDesc: "For franchises or multi-branch restaurants.",
+    proFeatures: ["Unlimited Outlets", "Unlimited Menu Items", "WhatsApp Checkout / POS", "Order Management Real Time", "Advanced Analytics", "Live Sound Notifications", "24/7 Priority Support"],
     freeForever: "Free forever",
     billedMonthly: "billed monthly",
     activeBadge: "Active",
@@ -107,31 +112,6 @@ const billingTranslations = {
     upgradingPlan: "Upgrading restaurant plan to {plan}...",
     upgradeSuccess: "Successfully updated plan of {name} to {plan}!",
     upgradeError: "Failed to update plan",
-    freeFeatures: [
-      "Up to 1 restaurant",
-      "Up to 5 categories",
-      "Up to 20 menu items",
-      "Basic QR code",
-      "Community support",
-    ],
-    basicFeatures: [
-      "Up to 3 restaurants",
-      "Unlimited categories",
-      "Unlimited menu items",
-      "Custom QR code design",
-      "Table & QR Table-based Ordering",
-      "Email support",
-    ],
-    proFeatures: [
-      "Unlimited restaurants",
-      "Unlimited categories",
-      "Unlimited menu items",
-      "Custom QR code design",
-      "Table & QR Table-based Ordering",
-      "Priority support",
-      "Analytics dashboard",
-      "Custom domain",
-    ],
   }
 };
 
@@ -190,33 +170,33 @@ export function BillingContent({ initialRestaurants }: BillingContentProps) {
 
   const basePlans = [
     {
-      name: "Free",
+      name: t.freeName,
       id: "free",
-      price: lang === "id" ? "Rp 0" : "$0",
-      period: lang === "id" ? "/bulan" : "/mo",
-      description: t.freePlanDesc,
+      price: t.freePrice,
+      period: "",
+      description: t.freeDesc,
       features: t.freeFeatures,
       icon: Zap,
       gradient: "from-neutral-400 to-neutral-600",
       accent: "neutral",
     },
     {
-      name: "Basic",
+      name: t.basicName,
       id: "basic",
-      price: lang === "id" ? "Rp 50.000" : "$5.00",
-      period: lang === "id" ? "/bulan" : "/mo",
-      description: t.basicPlanDesc,
+      price: billingPeriod === "yearly" ? t.basicPriceYearly : t.basicPrice,
+      period: t.basicPeriod,
+      description: t.basicDesc,
       features: t.basicFeatures,
       icon: Sparkles,
       gradient: "from-blue-500 to-indigo-600",
       accent: "blue",
     },
     {
-      name: "Pro",
+      name: t.proName,
       id: "pro",
-      price: lang === "id" ? "Rp 150.000" : "$12.50",
-      period: lang === "id" ? "/bulan" : "/mo",
-      description: t.proPlanDesc,
+      price: billingPeriod === "yearly" ? t.proPriceYearly : t.proPrice,
+      period: t.proPeriod,
+      description: t.proDesc,
       features: t.proFeatures,
       popular: true,
       icon: Crown,
@@ -336,7 +316,7 @@ export function BillingContent({ initialRestaurants }: BillingContentProps) {
                     : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
                 }`}
               >
-                {t.monthly}
+                {t.pricingToggleMonthly}
               </button>
               <button
                 onClick={() => setBillingPeriod("yearly")}
@@ -346,13 +326,13 @@ export function BillingContent({ initialRestaurants }: BillingContentProps) {
                     : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
                 }`}
               >
-                <span>{t.yearly}</span>
+                <span>{t.pricingToggleYearly}</span>
                 <span className={`px-1.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${
                   billingPeriod === "yearly"
                     ? "bg-white/20 text-white"
                     : "bg-orange-500/10 text-orange-500 dark:text-orange-400"
                 }`}>
-                  {t.save20}
+                  {t.pricingSave}
                 </span>
               </button>
             </div>
@@ -369,32 +349,36 @@ export function BillingContent({ initialRestaurants }: BillingContentProps) {
               let displayPeriod = plan.period;
               let originalPrice: string | null = null;
               let extraNote = t.billedMonthly;
-              let badgeText = plan.popular ? t.popularBadge : null;
+              let badgeText = plan.popular ? t.proBadge : null;
 
               if (plan.id === "free") {
                 displayPeriod = "";
                 extraNote = t.freeForever;
               } else if (plan.id === "basic") {
                 if (billingPeriod === "yearly") {
-                  displayPrice = lang === "id" ? "Rp 40.000" : "$4.00";
-                  originalPrice = lang === "id" ? "Rp 50.000" : "$5.00";
-                  extraNote = lang === "id" ? "ditagih Rp 480.000/tahun (Hemat 20%)" : "billed $48.00/yr (Save 20%)";
-                  badgeText = t.save20;
+                  displayPrice = t.basicPriceYearly;
+                  originalPrice = t.basicPrice;
+                  extraNote = lang === "id" 
+                    ? `ditagih Rp ${(40000 * 12).toLocaleString("id-ID")}/tahun (${t.pricingSave})` 
+                    : `billed $${(3.99 * 12).toFixed(2)}/yr (${t.pricingSave})`;
+                  badgeText = t.pricingSave;
                 } else {
-                  displayPrice = lang === "id" ? "Rp 50.000" : "$5.00";
+                  displayPrice = t.basicPrice;
                   extraNote = t.billedMonthly;
-                  badgeText = t.popularBadge;
+                  badgeText = t.basicBadge;
                 }
               } else if (plan.id === "pro") {
                 if (billingPeriod === "yearly") {
-                  displayPrice = lang === "id" ? "Rp 120.000" : "$10.00";
-                  originalPrice = lang === "id" ? "Rp 150.000" : "$12.50";
-                  extraNote = lang === "id" ? "ditagih Rp 1.440.000/tahun (Hemat 20%)" : "billed $120.00/yr (Save 20%)";
-                  badgeText = t.save20;
+                  displayPrice = t.proPriceYearly;
+                  originalPrice = t.proPrice;
+                  extraNote = lang === "id" 
+                    ? `ditagih Rp ${(120000 * 12).toLocaleString("id-ID")}/tahun (${t.pricingSave})` 
+                    : `billed $${(9.99 * 12).toFixed(2)}/yr (${t.pricingSave})`;
+                  badgeText = t.pricingSave;
                 } else {
-                  displayPrice = lang === "id" ? "Rp 150.000" : "$12.50";
+                  displayPrice = t.proPrice;
                   extraNote = t.billedMonthly;
-                  badgeText = t.recommendedBadge;
+                  badgeText = t.proBadge;
                 }
               }
 

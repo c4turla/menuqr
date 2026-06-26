@@ -35,6 +35,7 @@ type Restaurant = {
   whatsappNumber: string | null;
   slug: string;
   plan: string;
+  themePrimaryColor: string | null;
 };
 
 type MenuItem = {
@@ -66,6 +67,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [trackingOrders, setTrackingOrders] = useState<any[]>([]);
   const [trackingLoading, setTrackingLoading] = useState(false);
+  const [orderType, setOrderType] = useState<"dine_in" | "takeaway">("dine_in");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -74,12 +76,12 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
       if (table) {
         setTableNumber(table);
       }
-      
+
       const storageKey = `menuqr_active_orders_${restaurant.id}`;
       try {
         const ids = JSON.parse(localStorage.getItem(storageKey) || "[]");
         setActiveOrderIds(ids);
-      } catch (e) {}
+      } catch (e) { }
     }
   }, [restaurant.id]);
 
@@ -132,6 +134,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
     if (!open) {
       setOrderSuccess(false);
       setCustomerName("");
+      setOrderType("dine_in");
     }
   };
 
@@ -155,8 +158,9 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
       });
 
       const res = await createOrderAction(restaurant.id, {
-        tableNumber: tableNumber || undefined,
+        tableNumber: orderType === "dine_in" ? (tableNumber || undefined) : undefined,
         customerName: customerName.trim(),
+        orderType: orderType,
         items: orderItems,
       });
 
@@ -171,7 +175,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
         let currentActive = [];
         try {
           currentActive = JSON.parse(localStorage.getItem(storageKey) || "[]");
-        } catch (e) {}
+        } catch (e) { }
         currentActive.push(res.data.id);
         localStorage.setItem(storageKey, JSON.stringify(currentActive));
         setActiveOrderIds(currentActive);
@@ -265,12 +269,21 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
     const hasTable = tableNumber && isPremium;
 
     let message = `Halo *${restaurant.name}*,\n`;
-    if (hasTable) {
-      message += `Saya memesan dari *MEJA ${tableNumber}*:\n\n`;
+    if (isPremium) {
+      const typeStr = orderType === "dine_in" ? "Makan di tempat" : "Bungkus (Takeaway)";
+      if (hasTable && orderType === "dine_in") {
+        message += `Penyajian: *${typeStr} (MEJA ${tableNumber})*\n\n`;
+      } else {
+        message += `Penyajian: *${typeStr}*\n\n`;
+      }
     } else {
-      message += `Saya ingin memesan:\n\n`;
+      if (hasTable) {
+        message += `Saya memesan dari *MEJA ${tableNumber}*:\n\n`;
+      } else {
+        message += `Saya ingin memesan:\n\n`;
+      }
     }
-    
+
     Object.entries(cart).forEach(([itemId, qty]) => {
       const item = items.find((i) => i.id === itemId);
       if (item) {
@@ -286,15 +299,18 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
     if (formattedPhone.startsWith("0")) {
       formattedPhone = "62" + formattedPhone.slice(1);
     }
-    
+
     const waUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
     window.open(waUrl, "_blank");
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-neutral-50 dark:bg-neutral-950 pb-28 shadow-xl relative">
+    <div
+      className="mx-auto flex min-h-screen max-w-md flex-col bg-neutral-50 dark:bg-neutral-950 pb-28 shadow-xl relative"
+      style={{ "--theme-primary": restaurant.themePrimaryColor || "#f97316" } as React.CSSProperties}
+    >
       {/* Cover Image */}
-      <div className="relative h-44 w-full bg-neutral-200 dark:bg-neutral-800">
+      <div className="relative h-52 w-full bg-neutral-200 dark:bg-neutral-800">
         {restaurant.coverUrl ? (
           <Image
             src={restaurant.coverUrl}
@@ -304,15 +320,20 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
             priority
           />
         ) : (
-          <div className="h-full w-full bg-gradient-to-r from-orange-400 to-amber-500" />
+          <div
+            className="h-full w-full"
+            style={{
+              background: `linear-gradient(to right, ${restaurant.themePrimaryColor || "#f97316"}, #f59e0b)`,
+            }}
+          />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/80 via-neutral-950/25 to-transparent" />
       </div>
 
       {/* Restaurant Header */}
-      <div className="relative px-5 pt-0 pb-5 -mt-10">
-        <div className="flex items-end gap-3.5 mb-3">
-          <div className="relative h-18 w-18 shrink-0 overflow-hidden rounded-2xl border-4 border-white dark:border-neutral-950 bg-white shadow-md">
+      <div className="relative px-4 pt-0 pb-4 -mt-12">
+        <div className="flex items-end gap-3 mb-3">
+          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border-[3px] border-white dark:border-neutral-950 bg-white shadow-lg">
             {restaurant.logoUrl ? (
               <Image
                 src={restaurant.logoUrl}
@@ -321,23 +342,29 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                 className="object-cover"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600 text-white font-extrabold text-xl">
+              <div
+                className="flex h-full w-full items-center justify-center text-white font-extrabold text-xl"
+                style={{ backgroundColor: restaurant.themePrimaryColor || "#f97316" }}
+              >
                 {restaurant.name[0].toUpperCase()}
               </div>
             )}
           </div>
-          <div className="pb-1">
-            <h1 className="text-xl font-black text-white leading-tight drop-shadow-sm">
+          <div className="pb-1 min-w-0">
+            <h1 className="text-lg font-black text-white leading-tight drop-shadow-sm truncate">
               {restaurant.name}
             </h1>
             {restaurant.address && (
-              <div className="flex items-center gap-1 mt-1 text-[11px] text-neutral-300">
-                <MapPin className="h-3 w-3 text-orange-400" />
-                <span className="truncate max-w-[200px]">{restaurant.address}</span>
+              <div className="flex items-center gap-1 mt-0.5 text-[11px] text-neutral-300">
+                <MapPin className="h-3 w-3 shrink-0 text-[var(--theme-primary)]" />
+                <span className="truncate max-w-[190px]">{restaurant.address}</span>
               </div>
             )}
             {tableNumber && (restaurant.plan === "basic" || restaurant.plan === "pro") && (
-              <div className="inline-flex items-center gap-1 mt-1.5 px-2.5 py-0.5 rounded-full bg-orange-500 text-white text-[9px] font-black uppercase tracking-wider shadow-sm">
+              <div
+                className="inline-flex items-center gap-1 mt-1.5 px-3 py-1 rounded-full text-white text-[10px] font-black uppercase tracking-wider shadow-sm"
+                style={{ backgroundColor: restaurant.themePrimaryColor || "#f97316" }}
+              >
                 Meja {tableNumber}
               </div>
             )}
@@ -345,34 +372,33 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
         </div>
 
         {restaurant.description && (
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-medium">
+          <p className="text-[13px] text-neutral-500 dark:text-neutral-400 leading-relaxed font-medium mt-1">
             {restaurant.description}
           </p>
         )}
       </div>
 
       {/* Sticky Filter & Search */}
-      <div className="sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-950/95 px-5 py-3 backdrop-blur border-b border-neutral-100 dark:border-neutral-900 space-y-3">
+      <div className="sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-950/95 px-4 py-3 backdrop-blur border-b border-neutral-100 dark:border-neutral-900 space-y-2.5">
         {/* Search Input */}
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <Input
             placeholder="Cari makanan atau minuman..."
-            className="pl-10 pr-4 py-5 rounded-full border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs shadow-sm focus-visible:ring-orange-500"
+            className="pl-10 pr-4 h-11 rounded-full border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-sm shadow-sm focus-visible:ring-orange-500"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         {/* Category horizontal scrolling bar */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-5 px-5 scrollbar-none">
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
           <button
             onClick={() => setSelectedCategory("all")}
-            className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200 ${
-              selectedCategory === "all"
-                ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
+            className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200 ${selectedCategory === "all"
+                ? "bg-[var(--theme-primary)] text-white shadow-md"
                 : "bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-800"
-            }`}
+              }`}
           >
             Semua
           </button>
@@ -380,11 +406,10 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200 ${
-                selectedCategory === cat
-                  ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
+              className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200 ${selectedCategory === cat
+                  ? "bg-[var(--theme-primary)] text-white shadow-md"
                   : "bg-white dark:bg-neutral-900 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-800"
-              }`}
+                }`}
             >
               {cat}
             </button>
@@ -393,7 +418,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
       </div>
 
       {/* Menu items list */}
-      <div className="px-5 mt-4 flex-1 space-y-6">
+      <div className="px-4 mt-4 flex-1 space-y-6">
         {/* Featured Section */}
         {featuredItems.length > 0 && (
           <div className="space-y-3">
@@ -405,55 +430,71 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
               {featuredItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex gap-3 bg-white dark:bg-neutral-900 p-3 rounded-2xl border border-neutral-100 dark:border-neutral-800/80 shadow-sm"
+                  className={`flex gap-3 bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border shadow-sm relative overflow-hidden ${!item.available
+                      ? "border-neutral-100 dark:border-neutral-800/40 opacity-50"
+                      : "border-neutral-100 dark:border-neutral-800/80"
+                    }`}
                 >
+                  {!item.available && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 dark:bg-neutral-950/60 backdrop-blur-[2px]">
+                      <span className="px-4 py-1.5 rounded-full bg-red-500/90 text-white text-[11px] font-black uppercase tracking-wider shadow-lg">
+                        Habis
+                      </span>
+                    </div>
+                  )}
                   {item.imageUrl && (
-                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
+                    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
                       <Image
                         src={item.imageUrl}
                         alt={item.name}
                         fill
-                        className="object-cover"
+                        className={`object-cover ${!item.available ? "grayscale" : ""}`}
                       />
                     </div>
                   )}
-                  <div className="flex flex-col flex-1 min-w-0 justify-between">
+                  <div className="flex flex-col flex-1 min-w-0 justify-between py-0.5">
                     <div>
-                      <h4 className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                      <h4 className={`text-sm font-bold leading-snug ${!item.available ? "text-neutral-400 dark:text-neutral-500" : "text-neutral-900 dark:text-white"
+                        }`}>
                         {item.name}
                       </h4>
                       {item.description && (
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 line-clamp-2 mt-0.5 leading-relaxed">
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 line-clamp-2 mt-1 leading-relaxed">
                           {item.description}
                         </p>
                       )}
                     </div>
                     <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs font-black text-orange-500">
+                      <span className={`text-sm font-black ${!item.available ? "text-neutral-300 dark:text-neutral-600" : "text-[var(--theme-primary)]"
+                        }`}>
                         {formatPrice(Number(item.price))}
                       </span>
-                      {cart[item.id] ? (
+                      {!item.available ? (
+                        <span className="text-xs font-bold text-neutral-400 dark:text-neutral-500 italic">
+                          Habis
+                        </span>
+                      ) : cart[item.id] ? (
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => updateQuantity(item.id, -1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200"
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 active:scale-95 transition-transform"
                           >
-                            <Minus className="h-3 w-3" />
+                            <Minus className="h-3.5 w-3.5" />
                           </button>
-                          <span className="text-xs font-bold w-4 text-center">{cart[item.id]}</span>
+                          <span className="text-sm font-bold w-5 text-center">{cart[item.id]}</span>
                           <button
                             onClick={() => updateQuantity(item.id, 1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white hover:bg-orange-600 shadow-sm"
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white hover:opacity-90 shadow-sm active:scale-95 transition-transform"
                           >
-                            <Plus className="h-3 w-3" />
+                            <Plus className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ) : (
                         <button
                           onClick={() => updateQuantity(item.id, 1)}
-                          className="flex items-center gap-1 px-3 py-1 rounded-full bg-orange-50 dark:bg-orange-950/30 text-orange-500 text-[10px] font-bold hover:bg-orange-100 transition-colors"
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-xs font-bold hover:bg-[var(--theme-primary)]/20 active:scale-95 transition-all"
                         >
-                          <Plus className="h-3 w-3" />
+                          <Plus className="h-3.5 w-3.5" />
                           Tambah
                         </button>
                       )}
@@ -468,62 +509,78 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
         {/* Regular Items Grouped by Category */}
         {Object.entries(groupedItems).map(([catName, catItems]) => (
           <div key={catName} className="space-y-3">
-            <h3 className="text-xs font-black text-neutral-400 dark:text-neutral-600 uppercase tracking-wider">
+            <h3 className="text-[11px] font-black text-neutral-400 dark:text-neutral-600 uppercase tracking-widest">
               {catName}
             </h3>
             <div className="grid gap-3">
               {catItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex gap-3 bg-white dark:bg-neutral-900 p-3 rounded-2xl border border-neutral-100 dark:border-neutral-800/80 shadow-sm"
+                  className={`flex gap-3 bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border shadow-sm relative overflow-hidden ${!item.available
+                      ? "border-neutral-100 dark:border-neutral-800/40 opacity-50"
+                      : "border-neutral-100 dark:border-neutral-800/80"
+                    }`}
                 >
+                  {!item.available && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 dark:bg-neutral-950/60 backdrop-blur-[2px]">
+                      <span className="px-4 py-1.5 rounded-full bg-red-500/90 text-white text-[11px] font-black uppercase tracking-wider shadow-lg">
+                        Habis
+                      </span>
+                    </div>
+                  )}
                   {item.imageUrl && (
-                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
+                    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
                       <Image
                         src={item.imageUrl}
                         alt={item.name}
                         fill
-                        className="object-cover"
+                        className={`object-cover ${!item.available ? "grayscale" : ""}`}
                       />
                     </div>
                   )}
-                  <div className="flex flex-col flex-1 min-w-0 justify-between">
+                  <div className="flex flex-col flex-1 min-w-0 justify-between py-0.5">
                     <div>
-                      <h4 className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                      <h4 className={`text-sm font-bold leading-snug ${!item.available ? "text-neutral-400 dark:text-neutral-500" : "text-neutral-900 dark:text-white"
+                        }`}>
                         {item.name}
                       </h4>
                       {item.description && (
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 line-clamp-2 mt-0.5 leading-relaxed">
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 line-clamp-2 mt-1 leading-relaxed">
                           {item.description}
                         </p>
                       )}
                     </div>
                     <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs font-black text-orange-500">
+                      <span className={`text-sm font-black ${!item.available ? "text-neutral-300 dark:text-neutral-600" : "text-[var(--theme-primary)]"
+                        }`}>
                         {formatPrice(Number(item.price))}
                       </span>
-                      {cart[item.id] ? (
+                      {!item.available ? (
+                        <span className="text-xs font-bold text-neutral-400 dark:text-neutral-500 italic">
+                          Habis
+                        </span>
+                      ) : cart[item.id] ? (
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => updateQuantity(item.id, -1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200"
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 active:scale-95 transition-transform"
                           >
-                            <Minus className="h-3 w-3" />
+                            <Minus className="h-3.5 w-3.5" />
                           </button>
-                          <span className="text-xs font-bold w-4 text-center">{cart[item.id]}</span>
+                          <span className="text-sm font-bold w-5 text-center">{cart[item.id]}</span>
                           <button
                             onClick={() => updateQuantity(item.id, 1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white hover:bg-orange-600 shadow-sm"
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white hover:opacity-90 shadow-sm active:scale-95 transition-transform"
                           >
-                            <Plus className="h-3 w-3" />
+                            <Plus className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ) : (
                         <button
                           onClick={() => updateQuantity(item.id, 1)}
-                          className="flex items-center gap-1 px-3 py-1 rounded-full bg-orange-50 dark:bg-orange-950/30 text-orange-500 text-[10px] font-bold hover:bg-orange-100 transition-colors"
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-xs font-bold hover:bg-[var(--theme-primary)]/20 active:scale-95 transition-all"
                         >
-                          <Plus className="h-3 w-3" />
+                          <Plus className="h-3.5 w-3.5" />
                           Tambah
                         </button>
                       )}
@@ -547,10 +604,13 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 w-full max-w-sm px-4">
           <button
             onClick={() => setIsCartOpen(true)}
-            className="flex w-full items-center justify-between rounded-2xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-5 py-4 shadow-xl shadow-orange-500/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            className="flex w-full items-center justify-between rounded-2xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-5 py-4 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
           >
             <div className="flex items-center gap-3">
-              <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 text-white">
+              <div
+                className="relative flex h-10 w-10 items-center justify-center rounded-xl text-white"
+                style={{ backgroundColor: restaurant.themePrimaryColor || "#f97316" }}
+              >
                 <ShoppingBag className="h-5 w-5" />
                 <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white ring-2 ring-neutral-900 dark:ring-white">
                   {totalItems}
@@ -561,7 +621,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                 <p className="text-sm font-black">{formatPrice(totalPrice)}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1 text-xs font-bold text-orange-500">
+            <div className="flex items-center gap-1 text-xs font-bold text-[var(--theme-primary)]">
               Lihat Keranjang
               <ArrowRight className="h-4 w-4" />
             </div>
@@ -581,13 +641,15 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
               <div className="space-y-1">
                 <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white">Pesanan Terkirim!</h3>
                 <p className="text-[10px] text-neutral-400 dark:text-neutral-500 leading-relaxed font-medium">
-                  Pesanan Anda sudah masuk ke sistem kami dan sedang disiapkan oleh dapur. 
-                  {tableNumber && (restaurant.plan === "basic" || restaurant.plan === "pro") && (
-                    <span> Pesanan akan diantarkan langsung ke <strong>Meja ${tableNumber}</strong>.</span>
-                  )}
+                  Pesanan Anda sudah masuk ke sistem kami dan sedang disiapkan oleh dapur.
+                  {orderType === "dine_in" && tableNumber && (restaurant.plan === "basic" || restaurant.plan === "pro") ? (
+                    <span> Pesanan akan diantarkan langsung ke <strong>Meja {tableNumber}</strong>.</span>
+                  ) : orderType === "takeaway" && (restaurant.plan === "basic" || restaurant.plan === "pro") ? (
+                    <span> Silakan ambil pesanan Anda di kasir jika sudah siap.</span>
+                  ) : null}
                 </p>
               </div>
-              <Button 
+              <Button
                 onClick={() => handleOpenChange(false)}
                 className="w-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl py-4 text-xs font-black"
               >
@@ -599,16 +661,16 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
             <>
               <DialogHeader>
                 <DialogTitle className="text-sm font-extrabold flex items-center gap-2">
-                  <ShoppingBag className="h-4 w-4 text-orange-500" />
+                  <ShoppingBag className="h-4 w-4 text-[var(--theme-primary)]" />
                   Detail Pesanan
                 </DialogTitle>
                 {tableNumber && (restaurant.plan === "basic" || restaurant.plan === "pro") && (
                   <p className="text-[10px] font-bold text-neutral-400 text-left mt-0.5">
-                    Ditempatkan di: <span className="text-orange-500 font-extrabold uppercase">Meja {tableNumber}</span>
+                    Ditempatkan di: <span className="text-[var(--theme-primary)] font-extrabold uppercase">Meja {tableNumber}</span>
                   </p>
                 )}
               </DialogHeader>
-              
+
               <div className="divide-y divide-neutral-100 dark:divide-neutral-800 max-h-[40vh] overflow-y-auto pr-1">
                 {Object.entries(cart).map(([itemId, qty]) => {
                   const item = items.find((i) => i.id === itemId);
@@ -617,7 +679,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                     <div key={itemId} className="flex items-center justify-between py-3">
                       <div className="min-w-0 flex-1 pr-2">
                         <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">{item.name}</p>
-                        <p className="text-[10px] text-orange-500 font-black mt-0.5">{formatPrice(Number(item.price))}</p>
+                        <p className="text-[10px] text-[var(--theme-primary)] font-black mt-0.5">{formatPrice(Number(item.price))}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -629,7 +691,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                         <span className="text-xs font-extrabold w-4 text-center">{qty}</span>
                         <button
                           onClick={() => updateQuantity(itemId, 1)}
-                          className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white hover:bg-orange-600"
+                          className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white hover:opacity-90"
                         >
                           <Plus className="h-2.5 w-2.5" />
                         </button>
@@ -642,12 +704,43 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
               <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 space-y-4">
                 <div className="flex items-center justify-between text-xs font-bold mb-2">
                   <span className="text-neutral-400">Total Pembayaran</span>
-                  <span className="text-orange-500 text-sm font-black">{formatPrice(totalPrice)}</span>
+                  <span className="text-[var(--theme-primary)] text-sm font-black">{formatPrice(totalPrice)}</span>
                 </div>
 
                 {/* POS Details Form if basic/pro */}
                 {(restaurant.plan === "basic" || restaurant.plan === "pro") ? (
                   <div className="space-y-3.5 pt-1">
+                    {/* Makan di Tempat / Bungkus Selector */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+                        Pilihan Penyajian
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 bg-neutral-100 dark:bg-neutral-800 p-1 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => setOrderType("dine_in")}
+                          className={`py-2 text-xs font-bold rounded-lg transition-all ${
+                            orderType === "dine_in"
+                              ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm"
+                              : "text-neutral-500 dark:text-neutral-400"
+                          }`}
+                        >
+                          Makan di Tempat
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOrderType("takeaway")}
+                          className={`py-2 text-xs font-bold rounded-lg transition-all ${
+                            orderType === "takeaway"
+                              ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm"
+                              : "text-neutral-500 dark:text-neutral-400"
+                          }`}
+                        >
+                          Bungkus
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="space-y-1">
                       <label className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
                         Nama Anda
@@ -665,11 +758,11 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                       <Button
                         onClick={handleDirectOrder}
                         disabled={isSubmittingOrder || !customerName.trim()}
-                        className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-5 text-xs font-black shadow-md shadow-orange-500/20 flex items-center justify-center gap-2"
+                        className="w-full bg-[var(--theme-primary)] hover:opacity-90 text-white rounded-xl py-5 text-xs font-black shadow-md flex items-center justify-center gap-2"
                       >
                         Pesan Langsung (POS)
                       </Button>
-                      
+
                       {restaurant.whatsappNumber && (
                         <button
                           onClick={handleSendOrder}
@@ -708,11 +801,11 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
         <div className="fixed bottom-4 left-4 z-30">
           <button
             onClick={handleOpenTracking}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-xl shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all relative border border-orange-400"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--theme-primary)] hover:opacity-90 text-white shadow-xl hover:scale-105 active:scale-95 transition-all relative border border-[var(--theme-primary)]"
             title="Lacak Pesanan"
           >
             <ClipboardList className="h-5 w-5" />
-            <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 dark:bg-white text-[10px] font-black text-white dark:text-neutral-900 ring-2 ring-orange-500">
+            <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-neutral-900 dark:bg-white text-[10px] font-black text-white dark:text-neutral-900 ring-2 ring-[var(--theme-primary)]">
               {activeOrderIds.length}
             </span>
           </button>
@@ -724,14 +817,14 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
         <DialogContent className="max-w-xs rounded-2xl p-5 gap-4">
           <DialogHeader>
             <DialogTitle className="text-sm font-extrabold flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-orange-500" />
+              <ClipboardList className="h-4 w-4 text-[var(--theme-primary)]" />
               Lacak Pesanan
             </DialogTitle>
           </DialogHeader>
 
           {trackingLoading && trackingOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
-              <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
+              <Loader2 className="h-6 w-6 animate-spin text-[var(--theme-primary)]" />
               <p className="text-[10px] text-neutral-400 font-bold">Memuat status pesanan...</p>
             </div>
           ) : trackingOrders.length === 0 ? (
@@ -745,7 +838,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                   hour: "2-digit",
                   minute: "2-digit",
                 });
-                
+
                 // Determine step index based on status
                 let currentStep = 0; // pending = 0
                 if (order.status === "processing") currentStep = 1;
@@ -769,7 +862,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                       <div className="space-y-4 relative pl-5 border-l-2 border-neutral-200 dark:border-neutral-800 ml-2.5">
                         {/* Step 1: Received */}
                         <div className="relative">
-                          <span className={`absolute -left-[27px] top-0 flex h-4.5 w-4.5 items-center justify-center rounded-full text-[9px] font-black text-white bg-orange-500`}>
+                          <span className="absolute -left-[27px] top-0 flex h-4.5 w-4.5 items-center justify-center rounded-full text-[9px] font-black text-white bg-[var(--theme-primary)]">
                             <Check className="h-2.5 w-2.5" />
                           </span>
                           <div className="pl-1.5">
@@ -780,9 +873,8 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
 
                         {/* Step 2: Cooking */}
                         <div className="relative">
-                          <span className={`absolute -left-[27px] top-0 flex h-4.5 w-4.5 items-center justify-center rounded-full text-[9px] font-black text-white ${
-                            currentStep >= 1 ? "bg-orange-500" : "bg-neutral-200 dark:bg-neutral-800"
-                          }`}>
+                          <span className={`absolute -left-[27px] top-0 flex h-4.5 w-4.5 items-center justify-center rounded-full text-[9px] font-black text-white ${currentStep >= 1 ? "bg-[var(--theme-primary)]" : "bg-neutral-200 dark:bg-neutral-800"
+                            }`}>
                             {currentStep > 1 ? (
                               <Check className="h-2.5 w-2.5" />
                             ) : currentStep === 1 ? (
@@ -792,16 +884,15 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                             )}
                           </span>
                           <div className="pl-1.5">
-                            <h4 className="text-xs font-bold text-neutral-900 dark:text-white leading-none">Sedang Dimasak</h4>
+                            <h4 className="text-xs font-bold text-neutral-900 dark:text-white leading-none">Sedang Dibuat</h4>
                             <p className="text-[9px] text-neutral-400 dark:text-neutral-500 mt-1 font-medium">Chef sedang menyiapkan hidangan Anda</p>
                           </div>
                         </div>
 
                         {/* Step 3: Served */}
                         <div className="relative">
-                          <span className={`absolute -left-[27px] top-0 flex h-4.5 w-4.5 items-center justify-center rounded-full text-[9px] font-black text-white ${
-                            currentStep >= 2 ? "bg-green-500" : "bg-neutral-200 dark:bg-neutral-800"
-                          }`}>
+                          <span className={`absolute -left-[27px] top-0 flex h-4.5 w-4.5 items-center justify-center rounded-full text-[9px] font-black text-white ${currentStep >= 2 ? "bg-green-500" : "bg-neutral-200 dark:bg-neutral-800"
+                            }`}>
                             {currentStep >= 2 ? <Check className="h-2.5 w-2.5" /> : "3"}
                           </span>
                           <div className="pl-1.5">
@@ -822,7 +913,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                       ))}
                       <div className="flex justify-between font-bold text-neutral-900 dark:text-white pt-1.5">
                         <span>Total Bayar</span>
-                        <span className="text-orange-500">{formatPrice(Number(order.totalPrice))}</span>
+                        <span className="text-[var(--theme-primary)]">{formatPrice(Number(order.totalPrice))}</span>
                       </div>
                     </div>
                   </div>

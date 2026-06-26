@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,7 @@ const sidebarTranslations = {
     domain: "Domain",
     settings: "Pengaturan",
     help: "Bantuan",
+    staff: "Kelola Staff",
     storeHeader: "Toko",
     menuHeader: "Menu Utama",
     proHeader: "Pro",
@@ -63,6 +65,7 @@ const sidebarTranslations = {
     domain: "Domain",
     settings: "Settings",
     help: "Help",
+    staff: "Manage Staff",
     storeHeader: "Store",
     menuHeader: "Main Menu",
     proHeader: "Pro",
@@ -75,7 +78,8 @@ const sidebarTranslations = {
   }
 };
 
-export function DashboardSidebar({ isPro }: { isPro?: boolean }) {
+export function DashboardSidebar({ planTier }: { planTier: "free" | "basic" | "pro" | "super_admin" }) {
+  const isPro = planTier === "pro";
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
   const [storeOpen, setStoreOpen] = useState(false);
@@ -157,13 +161,27 @@ export function DashboardSidebar({ isPro }: { isPro?: boolean }) {
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-[220px] flex-col bg-white dark:bg-neutral-950 border-r border-neutral-100 dark:border-neutral-900">
       {/* Brand */}
-      <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-505 text-white font-extrabold text-sm shadow-md shadow-orange-500/30">
-          {isSuperAdmin ? "SA" : (session?.user?.name?.[0]?.toUpperCase() ?? "M")}
+      <div className="flex items-center justify-between gap-2 px-5 py-5">
+        <div className="relative h-8 w-28 shrink-0">
+          <Image src="/lightmode.webp" alt="MenuQR Logo" fill className="object-contain dark:hidden" />
+          <Image src="/darkmode.webp" alt="MenuQR Logo" fill className="object-contain hidden dark:block" />
         </div>
-        <span className="text-base font-extrabold tracking-tight text-neutral-900 dark:text-white">
-          {isSuperAdmin ? "MenuQR Admin" : "MenuQR"}
-        </span>
+        {planTier && planTier !== "super_admin" && (
+          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md tracking-wider shadow-sm select-none ${
+            planTier === "pro"
+              ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white"
+              : planTier === "basic"
+              ? "bg-blue-500 text-white"
+              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"
+          }`}>
+            {planTier}
+          </span>
+        )}
+        {planTier === "super_admin" && (
+          <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md tracking-wider bg-red-500 text-white shadow-sm select-none">
+            Admin
+          </span>
+        )}
       </div>
 
       {/* Store Selector (only for non-super-admin) */}
@@ -226,6 +244,7 @@ export function DashboardSidebar({ isPro }: { isPro?: boolean }) {
               {[
                 { href: "/dashboard/analytics", label: t.analytics, icon: BarChart3 },
                 { href: "/dashboard/domain", label: t.domain, icon: Globe },
+                { href: "/dashboard/staff", label: t.staff, icon: Users },
               ].map((item) => {
                 const isActive = pathname === item.href;
                 return (

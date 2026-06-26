@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { updateRestaurantPlan } from "@/server/actions/restaurant-actions";
+import { NotificationPanel } from "./notification-panel";
 import {
   ArrowUpRight,
   Store,
-  Bell,
   Settings2,
   UtensilsCrossed,
   ShoppingCart,
@@ -51,6 +51,17 @@ interface UserRecord {
   createdAt: Date;
 }
 
+interface RawOrder {
+  id: string;
+  restaurantId: string;
+  customerName: string | null;
+  status: string;
+  totalPrice: string;
+  createdAt: Date;
+}
+
+type Period = "weekly" | "monthly" | "yearly";
+
 interface DashboardContentProps {
   user: {
     id: string;
@@ -67,20 +78,8 @@ interface DashboardContentProps {
     totalMenuItems: number;
     totalUsers?: number;
   };
+  rawOrders?: RawOrder[];
 }
-
-/* ============================================================
-   Mock weekly revenue data
-============================================================ */
-const WEEKLY_REVENUE = [
-  { day: "Sun", revenue: 320 },
-  { day: "Mon", revenue: 480 },
-  { day: "Tue", revenue: 390 },
-  { day: "Wed", revenue: 520 },
-  { day: "Thu", revenue: 843, highlighted: true },
-  { day: "Fri", revenue: 410 },
-  { day: "Sat", revenue: 360 },
-];
 
 /* ============================================================
    Translations
@@ -262,10 +261,11 @@ function BusinessDataRow({
 /* ============================================================
    Main Component
 ============================================================ */
-export function DashboardContent({ user, restaurants, users = [], stats }: DashboardContentProps) {
+export function DashboardContent({ user, restaurants, users = [], stats, rawOrders = [] }: DashboardContentProps) {
   const isSuperAdmin = user.role === "super_admin";
   const [localRestaurants, setLocalRestaurants] = useState<Restaurant[]>(restaurants);
   const [lang, setLang] = useState<"id" | "en">("id");
+  const [period, setPeriod] = useState<Period>("weekly");
 
   useEffect(() => {
     setLocalRestaurants(restaurants);
@@ -282,6 +282,57 @@ export function DashboardContent({ user, restaurants, users = [], stats }: Dashb
     window.addEventListener("menuqr-lang-change", loadLang);
     return () => window.removeEventListener("menuqr-lang-change", loadLang);
   }, []);
+
+  // ── Period-aware aggregation ────────────────────────────────────────────────
+  const periodOrders = (() => {
+    const now = new Date();
+    const cutoff = new Date(now);
+    if (period === "weekly") cutoff.setDate(now.getDate() - 7);
+    else if (period === "monthly") cutoff.setMonth(now.getMonth() - 1);
+    else cutoff.setFullYear(now.getFullYear() - 1);
+    return rawOrders.filter(
+      (o) => o.status !== "cancelled" && new Date(o.createdAt) >= cutoff
+    );
+  })();
+
+  const totalRevenue = periodOrders.reduce((s, o) => s + (Number(o.totalPrice) || 0), 0);
+  const totalOrders  = periodOrders.length;
+  const uniqueNames  = new Set(periodOrders.map((o) => o.customerName).filter(Boolean));
+  const anonCount    = periodOrders.filter((o) => !o.customerName || o.customerName.trim() === "").length;
+  const numCustomers = uniqueNames.size + anonCount;
+  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+  // Build chart data ─────────────────────────────────────────────────────────
+  const chartData = (() => {
+    if (period === "weekly") {
+      const days = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+      const buckets = days.map((d) => ({ label: d, revenue: 0 }));
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
+      periodOrders.forEach((o) => {
+        const idx = new Date(o.createdAt).getDay();
+        buckets[idx].revenue += Number(o.totalPrice) || 0;
+      });
+      return buckets;
+    }
+    if (period === "monthly") {
+      const buckets: { label: string; revenue: number }[] = [];
+      for (let w = 1; w <= 4; w++) buckets.push({ label: `Mg ${w}`, revenue: 0 });
+      periodOrders.forEach((o) => {
+        const day = new Date(o.createdAt).getDate();
+        const idx = Math.min(Math.floor((day - 1) / 7), 3);
+        buckets[idx].revenue += Number(o.totalPrice) || 0;
+      });
+      return buckets;
+    }
+    // yearly
+    const months = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Ags","Sep","Okt","Nov","Des"];
+    const buckets = months.map((m) => ({ label: m, revenue: 0 }));
+    periodOrders.forEach((o) => {
+      const idx = new Date(o.createdAt).getMonth();
+      buckets[idx].revenue += Number(o.totalPrice) || 0;
+    });
+    return buckets;
+  })();
 
   const t = contentTranslations[lang];
 
@@ -316,7 +367,7 @@ export function DashboardContent({ user, restaurants, users = [], stats }: Dashb
   });
 
   /* Highlighted bar index */
-  const maxIdx = WEEKLY_REVENUE.reduce(
+  const maxIdx = chartData.reduce(
     (maxI, cur, i, arr) => (cur.revenue > arr[maxI].revenue ? i : maxI),
     0
   );
@@ -328,13 +379,24 @@ export function DashboardContent({ user, restaurants, users = [], stats }: Dashb
       <div className="rounded-xl bg-neutral-900 dark:bg-neutral-800 text-white px-3 py-2 text-xs shadow-xl">
         <p className="font-semibold">{label}</p>
         <p className="text-orange-300">
-          {lang === "id"
-            ? `Rp ${(payload[0].value * 15).toLocaleString("id-ID")}rb`
-            : `$${payload[0].value.toLocaleString("en-US")}`}
+          {`Rp ${payload[0].value.toLocaleString("id-ID")}`}
         </p>
       </div>
     );
   }
+
+  const formatChartTick = (val: number) => {
+    if (val >= 1_000_000_000) return `${(val / 1_000_000_000).toFixed(1)}M`;
+    if (val >= 1_000_000)     return `${(val / 1_000_000).toFixed(0)}Jt`;
+    if (val >= 1_000)         return `${(val / 1_000).toFixed(0)}rb`;
+    return val > 0 ? `${val}` : "0";
+  };
+
+  const periodLabels: Record<Period, string> = {
+    weekly:  lang === "id" ? "Mingguan" : "Weekly",
+    monthly: lang === "id" ? "Bulanan"  : "Monthly",
+    yearly:  lang === "id" ? "Tahunan"  : "Yearly",
+  };
 
   return (
     <div className="min-h-screen">
@@ -349,12 +411,7 @@ export function DashboardContent({ user, restaurants, users = [], stats }: Dashb
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="relative p-2.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors shadow-sm">
-            <Bell className="h-4 w-4 text-neutral-500" />
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">
-              8
-            </span>
-          </button>
+          <NotificationPanel />
           <Link href="/dashboard/settings">
             <button className="p-2.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors shadow-sm">
               <Settings2 className="h-4 w-4 text-neutral-500" />
@@ -510,30 +567,46 @@ export function DashboardContent({ user, restaurants, users = [], stats }: Dashb
               />
             </div>
 
+            {/* Period filter pill row */}
+            <div className="flex items-center gap-2">
+              {(["weekly", "monthly", "yearly"] as Period[]).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
+                    period === p
+                      ? "bg-orange-500 text-white shadow-md shadow-orange-200 dark:shadow-orange-900/30 scale-105"
+                      : "bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-orange-300 hover:text-orange-500"
+                  }`}
+                >
+                  {periodLabels[p]}
+                </button>
+              ))}
+            </div>
+
             {/* Middle row: Revenue chart + Business Data */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
               {/* Revenue Chart */}
               <div className="xl:col-span-2 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 p-5 shadow-sm">
                 <div className="flex items-start justify-between mb-1">
                   <div>
-                    <p className="font-extrabold text-sm text-neutral-900 dark:text-white">{t.totalRevenue}</p>
-                    <p className="text-[11px] text-neutral-400 mt-0.5">{t.salesOverview}</p>
+                    <p className="font-extrabold text-xs text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">{t.totalRevenue} · {periodLabels[period]}</p>
+                    <p className="text-2xl font-black text-neutral-900 dark:text-white mt-1">
+                      Rp {totalRevenue.toLocaleString("id-ID")}
+                    </p>
+                    <p className="text-[11px] text-neutral-400 mt-0.5">
+                      {totalOrders} {t.totalOrders.toLowerCase()}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
-                      <span>{t.thisWeek}</span>
-                      <ChevronDown className="h-3 w-3" />
-                    </button>
-                    <button className="p-1.5 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
-                      <ArrowUpRight className="h-3.5 w-3.5 text-neutral-400" />
-                    </button>
-                  </div>
+                  <button className="p-1.5 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                    <ArrowUpRight className="h-3.5 w-3.5 text-neutral-400" />
+                  </button>
                 </div>
 
                 <div className="h-52 mt-4">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
-                      data={WEEKLY_REVENUE}
+                      data={chartData}
                       margin={{ top: 5, right: 0, left: -20, bottom: 0 }}
                       barCategoryGap="30%"
                     >
@@ -544,7 +617,7 @@ export function DashboardContent({ user, restaurants, users = [], stats }: Dashb
                         className="dark:stroke-neutral-800"
                       />
                       <XAxis
-                        dataKey="day"
+                        dataKey="label"
                         axisLine={false}
                         tickLine={false}
                         tick={{ fontSize: 11, fill: "#a3a3a3", fontWeight: 600 }}
@@ -554,15 +627,15 @@ export function DashboardContent({ user, restaurants, users = [], stats }: Dashb
                         axisLine={false}
                         tickLine={false}
                         tick={{ fontSize: 11, fill: "#a3a3a3", fontWeight: 600 }}
-                        tickFormatter={(v) => (lang === "id" ? `Rp ${v * 15}k` : `$${v}`)}
+                        tickFormatter={formatChartTick}
                       />
                       <Tooltip content={<CustomTooltip />} cursor={{ fill: "transparent" }} />
                       <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
-                        {WEEKLY_REVENUE.map((entry, index) => (
+                        {chartData.map((entry, index) => (
                           <Cell
                             key={index}
-                            fill={index === maxIdx ? "#f97316" : "#f3f4f6"}
-                            className={index === maxIdx ? "" : "dark:fill-neutral-800"}
+                            fill={index === maxIdx && entry.revenue > 0 ? "#f97316" : "#f3f4f6"}
+                            className={index === maxIdx && entry.revenue > 0 ? "" : "dark:fill-neutral-800"}
                           />
                         ))}
                       </Bar>
@@ -573,28 +646,27 @@ export function DashboardContent({ user, restaurants, users = [], stats }: Dashb
 
               {/* Business Data panel */}
               <div className="rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-4">
                   <p className="font-extrabold text-sm text-neutral-900 dark:text-white">{t.businessData}</p>
-                  <button className="flex items-center gap-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors">
-                    <span>{t.thisWeek}</span>
-                    <ChevronDown className="h-3 w-3" />
-                  </button>
+                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-900/20 text-orange-500">
+                    {periodLabels[period]}
+                  </span>
                 </div>
 
                 <div className="divide-y divide-neutral-50 dark:divide-neutral-800">
                   <BusinessDataRow
                     label={t.numCustomers}
-                    value="197"
+                    value={numCustomers.toString()}
                     icon={<Users className="h-4 w-4" />}
                   />
                   <BusinessDataRow
                     label={t.totalOrders}
-                    value="270"
+                    value={totalOrders.toString()}
                     icon={<ShoppingCart className="h-4 w-4" />}
                   />
                   <BusinessDataRow
                     label={t.avgOrderValue}
-                    value={lang === "id" ? "Rp 109rb" : "$12.50"}
+                    value={`Rp ${Math.round(avgOrderValue).toLocaleString("id-ID")}`}
                     icon={<TrendingUp className="h-4 w-4" />}
                   />
                 </div>

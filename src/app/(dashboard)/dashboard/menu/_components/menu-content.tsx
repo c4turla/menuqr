@@ -84,8 +84,8 @@ const menuTranslations = {
     noItemsYet: "Belum ada menu makanan",
     addItemsToMenu: "Tambahkan menu hidangan ke restoran Anda untuk memulai.",
     featuredLabel: "Unggulan",
-    hiddenLabel: "Disembunyikan",
-    visibleLabel: "Tampil",
+    hiddenLabel: "Habis",
+    visibleLabel: "Tersedia",
     createTitle: "Buat Menu Makanan",
     editTitle: "Edit Menu Makanan",
     nameLabel: "Nama *",
@@ -119,6 +119,7 @@ const menuTranslations = {
     toastSomethingWrong: "Terjadi kesalahan",
     toastToggleAvailabilityError: "Gagal mengubah ketersediaan",
     toastToggleFeaturedError: "Gagal mengubah status unggulan",
+    errLimitMenu: "Batas paket Gratis tercapai: Anda hanya dapat membuat hingga 5 menu makanan. Harap tingkatkan paket berlangganan Anda.",
   },
   en: {
     pageTitle: "Menu Items",
@@ -132,8 +133,8 @@ const menuTranslations = {
     noItemsYet: "No menu items yet",
     addItemsToMenu: "Add items to your restaurant menu.",
     featuredLabel: "Featured",
-    hiddenLabel: "Hidden",
-    visibleLabel: "Visible",
+    hiddenLabel: "Sold Out",
+    visibleLabel: "Available",
     createTitle: "Create Menu Item",
     editTitle: "Edit Menu Item",
     nameLabel: "Name *",
@@ -167,6 +168,7 @@ const menuTranslations = {
     toastSomethingWrong: "Something went wrong",
     toastToggleAvailabilityError: "Failed to toggle availability",
     toastToggleFeaturedError: "Failed to toggle featured",
+    errLimitMenu: "Free plan limit reached: You can only create up to 5 menu items. Please upgrade your plan.",
   }
 };
 
@@ -335,7 +337,11 @@ export function MenuContent({ restaurants }: MenuContentProps) {
       setDialogOpen(false);
       loadData(selectedRestaurantId);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : t.toastSomethingWrong);
+      if (err instanceof Error && err.message === "ERR_LIMIT_MENU_FREE") {
+        toast.error(t.errLimitMenu);
+      } else {
+        toast.error(err instanceof Error ? err.message : t.toastSomethingWrong);
+      }
     } finally {
       setSaving(false);
     }
@@ -519,7 +525,7 @@ export function MenuContent({ restaurants }: MenuContentProps) {
                     </span>
                   )}
                   {!item.available && (
-                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-900/70 text-white text-[10px] font-bold backdrop-blur-sm">
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/90 text-white text-[10px] font-bold backdrop-blur-sm">
                       <EyeOff className="h-2.5 w-2.5" />
                       {t.hiddenLabel}
                     </span>

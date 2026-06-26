@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { 
   ChefHat, 
   Clock, 
@@ -10,7 +10,12 @@ import {
   AlertTriangle, 
   RefreshCw,
   Receipt,
-  User
+  User,
+  CalendarDays,
+  Zap,
+  History,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -35,6 +40,7 @@ interface Order {
   restaurantId: string;
   tableNumber: string | null;
   customerName: string | null;
+  orderType: string;
   status: string; // pending, processing, completed, cancelled
   totalPrice: string;
   items: OrderItem[];
@@ -46,12 +52,57 @@ interface OrdersContentProps {
   initialRestaurants: Restaurant[];
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// TIMEZONE NOTE:
+// Skema DB menggunakan `timestamp` (tanpa tz). PostgreSQL menyimpan waktu
+// WIB apa adanya (karena app/DB server di UTC+7). Drizzle membaca nilai ini
+// dan membungkusnya dalam JS Date seolah UTC → tampilan jadi 7 jam ke depan.
+//
+// Solusi display: pakai timeZone: "UTC" agar JS tidak menggeser nilai raw,
+// sehingga nilai WIB yang tersimpan tampil dengan benar.
+//
+// Fix proper jangka panjang: migrasi schema ke timestamp({ withTimezone: true })
+// ──────────────────────────────────────────────────────────────────────────
+
+// Offset WIB dalam ms (dipakai untuk filter range tanggal ke server)
+const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+/**
+ * Untuk filter ke DB: konversi "00:00 WIB" menjadi nilai raw yang setara.
+ * Karena DB menyimpan WIB as-is (tidak ada tz-awareness), kita TIDAK perlu
+ * menggeser — cukup bangun Date dengan nilai WIB langsung lalu pakai ISO.
+ */
+function getTodayRange(): { dateFrom: string; dateTo: string } {
+  // Ambil tanggal hari ini di WIB dengan menggeser UTC+7
+  const wibNow = new Date(Date.now() + WIB_OFFSET_MS);
+  const y = wibNow.getUTCFullYear();
+  const mo = wibNow.getUTCMonth();
+  const d = wibNow.getUTCDate();
+  // Bangun batas hari dalam "waktu WIB as UTC" — cocok dengan nilai raw di DB
+  const start = new Date(Date.UTC(y, mo, d, 0, 0, 0, 0));
+  const end   = new Date(Date.UTC(y, mo, d, 23, 59, 59, 999));
+  return { dateFrom: start.toISOString(), dateTo: end.toISOString() };
+}
+
+// Helper: range untuk tanggal tertentu (YYYY-MM-DD) — WIB-aware
+function getDateRange(dateStr: string): { dateFrom: string; dateTo: string } {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+  const end   = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+  return { dateFrom: start.toISOString(), dateTo: end.toISOString() };
+}
+
+type ViewMode = "pos" | "history";
+
 const ordersTranslations = {
   id: {
     pageTitle: "Manajer Pesanan POS",
     pageSubtitle: "Manajemen antrean pesanan masuk, proses masak, dan kasir secara real-time.",
     refreshBtn: "Segarkan",
-    liveActive: "Live Monitoring Aktif",
+    liveActive: "Live — Hari Ini",
+    modePOS: "Live POS",
+    modeHistory: "Riwayat",
+    historyDate: "Tanggal",
     noRestoTitle: "Belum Ada Restoran",
     noRestoDesc: "Anda harus membuat restoran terlebih dahulu di menu Outlets sebelum dapat menggunakan POS Order Manager.",
     createRestoBtn: "Buat Restoran Baru",
@@ -64,9 +115,10 @@ const ordersTranslations = {
     lockedTitle: "Fitur Live POS Orders Terkunci",
     lockedDesc: "Terima pesanan pelanggan secara langsung di dashboard Anda, dapatkan notifikasi suara bel real-time, dan pantau status memasak dari dapur. Fitur POS ini hanya tersedia untuk paket Basic dan Pro.",
     upgradeBtn: "Tingkatkan Sekarang & Coba Gratis",
-    loadingOrders: "Memuat pesanan live...",
-    noOrdersTitle: "Tidak Ada Pesanan",
-    noOrdersDesc: "Saat ini belum ada pesanan dengan status \"{status}\" untuk outlet ini.",
+    loadingOrders: "Memuat pesanan...",
+    noOrdersTitle: "Tidak Ada Pesanan Aktif",
+    noOrdersDesc: "Saat ini belum ada pesanan dengan status \"{status}\" untuk hari ini.",
+    noOrdersHistoryDesc: "Tidak ada pesanan ditemukan pada tanggal yang dipilih.",
     tableLabel: "Meja",
     generalLabel: "Umum",
     statusNew: "Baru",
@@ -84,12 +136,17 @@ const ordersTranslations = {
     statusTextProcessed: "diproses",
     statusTextCompleted: "selesai",
     statusTextCancelled: "dibatalkan",
+    typeDineIn: "Makan di Tempat",
+    typeTakeaway: "Bungkus",
   },
   en: {
     pageTitle: "POS Order Manager",
     pageSubtitle: "Real-time management of incoming orders, kitchen queue, and cashier.",
     refreshBtn: "Refresh",
-    liveActive: "Live Monitoring Active",
+    liveActive: "Live — Today",
+    modePOS: "Live POS",
+    modeHistory: "History",
+    historyDate: "Date",
     noRestoTitle: "No Restaurants Yet",
     noRestoDesc: "You must create a restaurant first in the Outlets menu before you can use the POS Order Manager.",
     createRestoBtn: "Create New Restaurant",
@@ -102,9 +159,10 @@ const ordersTranslations = {
     lockedTitle: "Live POS Orders Locked",
     lockedDesc: "Receive customer orders directly in your dashboard, get real-time chime notifications, and monitor kitchen cooking status. This POS feature is only available for Basic and Pro packages.",
     upgradeBtn: "Upgrade Now & Try Free",
-    loadingOrders: "Loading live orders...",
-    noOrdersTitle: "No Orders",
-    noOrdersDesc: "There are currently no orders with status \"{status}\" for this outlet.",
+    loadingOrders: "Loading orders...",
+    noOrdersTitle: "No Active Orders",
+    noOrdersDesc: "There are currently no orders with status \"{status}\" for today.",
+    noOrdersHistoryDesc: "No orders found for the selected date.",
     tableLabel: "Table",
     generalLabel: "General",
     statusNew: "New",
@@ -122,6 +180,8 @@ const ordersTranslations = {
     statusTextProcessed: "processing",
     statusTextCompleted: "completed",
     statusTextCancelled: "cancelled",
+    typeDineIn: "Dine-in",
+    typeTakeaway: "Takeaway",
   }
 };
 
@@ -134,7 +194,36 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [lang, setLang] = useState<"id" | "en">("id");
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const previousOrdersRef = useRef<Order[]>([]);
+
+  useEffect(() => {
+    const handleGesture = () => {
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const ctx = new AudioContextClass();
+          if (ctx.state === "suspended") {
+            ctx.resume().then(() => {
+              setAudioUnlocked(true);
+            });
+          } else {
+            setAudioUnlocked(true);
+          }
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener("click", handleGesture);
+    return () => window.removeEventListener("click", handleGesture);
+  }, []);
+
+  // ── View Mode ──────────────────────────────────────────────────────────
+  // "pos"     → hanya pesanan HARI INI yang aktif (pending/processing)
+  // "history" → semua pesanan pada tanggal yang dipilih (semua status)
+  const [viewMode, setViewMode] = useState<ViewMode>("pos");
+  const todayStr = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const [historyDate, setHistoryDate] = useState<string>(todayStr);
 
   const selectedRestaurant = restaurants.find((r) => r.id === selectedRestaurantId);
   const isPremium = selectedRestaurant?.plan === "basic" || selectedRestaurant?.plan === "pro";
@@ -156,9 +245,9 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
   // Play synthetic chime sound
   const playNotificationSound = () => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
-      // Node 1 (D5 tone)
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const audioCtx = new AudioContextClass();
       const osc1 = audioCtx.createOscillator();
       const gain1 = audioCtx.createGain();
       osc1.connect(gain1);
@@ -169,50 +258,65 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
       gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
       osc1.start();
       osc1.stop(audioCtx.currentTime + 0.6);
-
-      // Node 2 (A5 tone) after 100ms
       setTimeout(() => {
-        const osc2 = audioCtx.createOscillator();
-        const gain2 = audioCtx.createGain();
-        osc2.connect(gain2);
-        gain2.connect(audioCtx.destination);
-        osc2.type = "sine";
-        osc2.frequency.setValueAtTime(880.00, audioCtx.currentTime);
-        gain2.gain.setValueAtTime(0.12, audioCtx.currentTime);
-        gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
-        osc2.start();
-        osc2.stop(audioCtx.currentTime + 0.6);
+        try {
+          const osc2 = audioCtx.createOscillator();
+          const gain2 = audioCtx.createGain();
+          osc2.connect(gain2);
+          gain2.connect(audioCtx.destination);
+          osc2.type = "sine";
+          osc2.frequency.setValueAtTime(880.00, audioCtx.currentTime);
+          gain2.gain.setValueAtTime(0.12, audioCtx.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+          osc2.start();
+          osc2.stop(audioCtx.currentTime + 0.6);
+        } catch (e) {}
       }, 100);
     } catch (e) {
-      console.warn("Chime blocked by browser user interaction policy", e);
+      console.warn("Chime blocked by browser", e);
     }
   };
 
-  // Fetch orders
-  const fetchOrders = async (silent = false) => {
+  const handleToggleAudio = () => {
+    playNotificationSound();
+    setAudioUnlocked(true);
+    toast.success(lang === "id" ? "Suara notifikasi aktif!" : "Notification sound enabled!");
+  };
+
+  // ── Fetch orders ────────────────────────────────────────────────────────
+  const fetchOrders = useCallback(async (silent = false) => {
     if (!selectedRestaurantId || !isPremium) return;
     if (!silent) setLoading(true);
     try {
-      const res = await getOrdersAction(selectedRestaurantId);
+      let options: { dateFrom?: string; dateTo?: string; activeOnly?: boolean };
+
+      if (viewMode === "pos") {
+        // POS: pesanan hari ini saja, hanya yang masih aktif (pending/processing)
+        options = { ...getTodayRange(), activeOnly: true };
+      } else {
+        // History: semua status pada tanggal yang dipilih
+        options = { ...getDateRange(historyDate) };
+      }
+
+      const res = await getOrdersAction(selectedRestaurantId, options);
       if (res.error) {
         toast.error(res.error);
         return;
       }
-      
+
       const newOrders = (res.data || []).map((o) => ({
         ...o,
         createdAt: new Date(o.createdAt),
         updatedAt: new Date(o.updatedAt),
       }));
 
-      // Detect new pending orders for sound & toast notifications
-      if (previousOrdersRef.current.length > 0) {
+      // Hanya notifikasi pesanan baru di mode POS
+      if (viewMode === "pos" && previousOrdersRef.current.length > 0) {
         const newPendingOrders = newOrders.filter(
           (newOrder) =>
             newOrder.status === "pending" &&
             !previousOrdersRef.current.some((prevOrder) => prevOrder.id === newOrder.id)
         );
-
         if (newPendingOrders.length > 0) {
           playNotificationSound();
           newPendingOrders.forEach((order) => {
@@ -233,21 +337,21 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, [selectedRestaurantId, isPremium, viewMode, historyDate, t]);
 
-  // Poll for new orders every 8 seconds
+  // ── Polling: hanya di mode POS (mode history tidak perlu live) ──────────
   useEffect(() => {
+    previousOrdersRef.current = [];
     fetchOrders(false);
+
+    if (viewMode !== "pos") return; // tidak perlu poll di mode history
 
     const interval = setInterval(() => {
       fetchOrders(true);
     }, 8000);
 
-    return () => {
-      clearInterval(interval);
-      previousOrdersRef.current = [];
-    };
-  }, [selectedRestaurantId, isPremium]);
+    return () => clearInterval(interval);
+  }, [selectedRestaurantId, isPremium, viewMode, historyDate, fetchOrders]);
 
   // Update order status
   const handleUpdateStatus = async (orderId: string, newStatus: "pending" | "processing" | "completed" | "cancelled") => {
@@ -303,7 +407,33 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
         </div>
 
         {isPremium && (
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            {/* View mode toggle */}
+            <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1">
+              <button
+                onClick={() => { setViewMode("pos"); setStatusFilter("all"); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-200 ${
+                  viewMode === "pos"
+                    ? "bg-white dark:bg-neutral-700 text-orange-500 shadow-sm"
+                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                }`}
+              >
+                <Zap className="h-3 w-3" />
+                {t.modePOS}
+              </button>
+              <button
+                onClick={() => { setViewMode("history"); setStatusFilter("all"); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-200 ${
+                  viewMode === "history"
+                    ? "bg-white dark:bg-neutral-700 text-blue-500 shadow-sm"
+                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                }`}
+              >
+                <History className="h-3 w-3" />
+                {t.modeHistory}
+              </button>
+            </div>
+
             <Button
               variant="outline"
               size="sm"
@@ -314,10 +444,39 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
               {t.refreshBtn}
             </Button>
-            <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl text-emerald-600 dark:text-emerald-500 text-[11px] font-black uppercase tracking-wider animate-pulse">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              {t.liveActive}
-            </div>
+
+            {/* Audio Toggle Button */}
+            {viewMode === "pos" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleToggleAudio}
+                className={`rounded-xl text-xs font-bold border-neutral-200 dark:border-neutral-800 flex items-center gap-1.5 transition-all duration-200 ${
+                  audioUnlocked
+                    ? "text-emerald-600 dark:text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200/50 dark:border-emerald-900/30"
+                    : "text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900"
+                }`}
+              >
+                {audioUnlocked ? (
+                  <>
+                    <Volume2 className="h-3.5 w-3.5 text-emerald-500" />
+                    <span className="hidden sm:inline">{lang === "id" ? "Suara Aktif" : "Sound Active"}</span>
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="h-3.5 w-3.5 text-neutral-400 animate-pulse" />
+                    <span className="text-orange-500">{lang === "id" ? "Aktifkan Suara" : "Enable Sound"}</span>
+                  </>
+                )}
+              </Button>
+            )}
+
+            {viewMode === "pos" && (
+              <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl text-emerald-600 dark:text-emerald-500 text-[11px] font-black uppercase tracking-wider animate-pulse">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                {t.liveActive}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -361,6 +520,23 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
                   </option>
                 ))}
               </select>
+
+              {/* Date picker — only in history mode */}
+              {isPremium && viewMode === "history" && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider flex items-center gap-1">
+                    <CalendarDays className="h-3 w-3" />
+                    {t.historyDate}
+                  </span>
+                  <input
+                    type="date"
+                    value={historyDate}
+                    max={todayStr}
+                    onChange={(e) => setHistoryDate(e.target.value)}
+                    className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
             </div>
 
             {isPremium && (
@@ -428,18 +604,29 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
                     <Receipt className="h-5 w-5" />
                   </div>
                   <h3 className="text-xs font-bold text-neutral-900 dark:text-white">{t.noOrdersTitle}</h3>
-                  <p className="text-[10px] text-neutral-400 dark:text-neutral-505 mt-1">
-                    {t.noOrdersDesc.replace("{status}", statusFilter.toUpperCase())}
+                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                    {viewMode === "pos"
+                      ? t.noOrdersDesc.replace("{status}", statusFilter === "all" ? "aktif" : statusFilter.toUpperCase())
+                      : t.noOrdersHistoryDesc}
                   </p>
                 </div>
               ) : (
                 /* Orders Grid */
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {filteredOrders.map((order) => {
-                    const orderDate = new Date(order.createdAt).toLocaleTimeString(lang === "id" ? "id-ID" : "en-US", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    });
+                    // DB sekarang menyimpan UTC yang benar (timestamptz).
+                    // Tampilkan dengan timezone WIB = UTC+7.
+                    const orderDate = new Date(order.createdAt).toLocaleString(
+                      lang === "id" ? "id-ID" : "en-US",
+                      {
+                        timeZone: "Asia/Jakarta",
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }
+                    );
 
                     return (
                       <div
@@ -456,15 +643,23 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
                         <div className="space-y-3">
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              {order.tableNumber ? (
-                                <span className="inline-block bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                                  {t.tableLabel} {order.tableNumber}
-                                </span>
-                              ) : (
-                                <span className="inline-block bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">
-                                  {t.generalLabel}
-                                </span>
-                              )}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {order.orderType === "takeaway" ? (
+                                  <span className="inline-block bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                    {t.typeTakeaway}
+                                  </span>
+                                ) : (
+                                  <span className="inline-block bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                    {t.typeDineIn}
+                                  </span>
+                                )}
+
+                                {order.tableNumber && (
+                                  <span className="inline-block bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                    {t.tableLabel} {order.tableNumber}
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-1 mt-1.5 text-[10px] text-neutral-400 font-medium">
                                 <Clock className="h-3 w-3" />
                                 <span>{orderDate}</span>

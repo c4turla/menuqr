@@ -16,6 +16,7 @@ export const orders = pgTable("orders", {
     price: string;
     quantity: number;
   }[]>().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  orderType: text("order_type").notNull().default("dine_in"), // dine_in, takeaway
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Pencil,
   Trash2,
@@ -9,6 +10,11 @@ import {
   Plus,
   Store,
   ExternalLink,
+  Upload,
+  X,
+  Loader2,
+  Crown,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -36,6 +42,9 @@ type Restaurant = {
   phone?: string | null;
   whatsappNumber?: string | null;
   address?: string | null;
+  logoUrl?: string | null;
+  coverUrl?: string | null;
+  themePrimaryColor?: string | null;
   plan: "free" | "basic" | "pro";
 };
 
@@ -62,6 +71,13 @@ const restaurantsTranslations = {
     formPhone: "Nomor Telepon",
     formWhatsapp: "Nomor WhatsApp",
     formAddress: "Alamat",
+    formLogo: "Logo Restoran",
+    formCover: "Cover / Banner",
+    lockedFeature: "Fitur Premium",
+    upgradeForLogo: "Fitur Upload Logo & Cover hanya tersedia untuk paket Basic dan Pro. Silakan upgrade paket Anda di menu Billing.",
+    uploadLabel: "Pilih / Unggah Gambar",
+    uploadSpecs: "PNG, JPG, WebP maks 5MB",
+    removeImage: "Hapus gambar",
     restoUpdated: "Restoran berhasil diperbarui",
     restoCreated: "Restoran berhasil dibuat",
     restoDeleted: "Restoran berhasil dihapus",
@@ -76,6 +92,18 @@ const restaurantsTranslations = {
     deleteBtn: "Hapus",
     updateBtn: "Perbarui",
     createBtn: "Buat",
+    errLimitOutlet: "Batas paket tercapai: Paket Gratis dan Basic hanya dapat memiliki 1 outlet. Harap tingkatkan outlet yang ada ke paket Pro untuk membuat lebih banyak cabang.",
+    errLogoCoverLocked: "Fitur Upload Logo & Cover hanya tersedia untuk paket Basic dan Pro. Silakan upgrade di menu Billing.",
+    errImageFormat: "Format file harus berupa gambar",
+    errImageSize: "Ukuran gambar maksimal 5MB",
+    uploadError: "Gagal mengunggah gambar",
+    uploading: "Mengunggah...",
+    formTheme: "Warna Tema (Custom Theme)",
+    formThemeDesc: "Warna aksen utama untuk halaman menu publik Anda. Hanya tersedia untuk paket Pro.",
+    themeLocked: "Custom Theme hanya tersedia untuk paket Pro.",
+    errThemeProOnly: "Fitur Custom Theme hanya tersedia untuk paket Pro. Silakan upgrade di menu Billing.",
+    resetTheme: "Reset ke Default",
+    previewLabel: "Preview:",
   },
   en: {
     pageTitle: "Outlets",
@@ -89,6 +117,13 @@ const restaurantsTranslations = {
     formPhone: "Phone",
     formWhatsapp: "WhatsApp Number",
     formAddress: "Address",
+    formLogo: "Restaurant Logo",
+    formCover: "Cover / Banner",
+    lockedFeature: "Premium Feature",
+    upgradeForLogo: "Logo & Cover upload is only available for Basic and Pro plans. Please upgrade your plan in the Billing menu.",
+    uploadLabel: "Choose / Upload Image",
+    uploadSpecs: "PNG, JPG, WebP max 5MB",
+    removeImage: "Remove image",
     restoUpdated: "Restaurant updated successfully",
     restoCreated: "Restaurant created successfully",
     restoDeleted: "Restaurant deleted successfully",
@@ -103,6 +138,18 @@ const restaurantsTranslations = {
     deleteBtn: "Delete",
     updateBtn: "Update",
     createBtn: "Create",
+    errLimitOutlet: "Plan limit reached: Free and Basic plans can only have 1 outlet. Please upgrade an existing outlet to Pro to create more branches.",
+    errLogoCoverLocked: "Logo & Cover upload is only available for Basic and Pro plans. Please upgrade in the Billing menu.",
+    errImageFormat: "File format must be an image",
+    errImageSize: "Maximum image size is 5MB",
+    uploadError: "Failed to upload image",
+    uploading: "Uploading...",
+    formTheme: "Theme Color (Custom Theme)",
+    formThemeDesc: "Primary accent color for your public menu page. Only available for Pro plan.",
+    themeLocked: "Custom Theme is only available for the Pro plan.",
+    errThemeProOnly: "Custom Theme feature is only available for the Pro plan. Please upgrade in the Billing menu.",
+    resetTheme: "Reset to Default",
+    previewLabel: "Preview:",
   }
 };
 
@@ -123,7 +170,13 @@ export function RestaurantsContent({
     phone: "",
     whatsapp_number: "",
     address: "",
+    logoUrl: "",
+    coverUrl: "",
+    themePrimaryColor: "#f97316",
   });
+
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   useEffect(() => {
     const loadLang = () => {
@@ -141,7 +194,7 @@ export function RestaurantsContent({
 
   function openCreate() {
     setEditing(null);
-    setForm({ name: "", description: "", phone: "", whatsapp_number: "", address: "" });
+    setForm({ name: "", description: "", phone: "", whatsapp_number: "", address: "", logoUrl: "", coverUrl: "", themePrimaryColor: "#f97316" });
     setDialogOpen(true);
   }
 
@@ -153,6 +206,9 @@ export function RestaurantsContent({
       phone: restaurant.phone ?? "",
       whatsapp_number: restaurant.whatsappNumber ?? "",
       address: restaurant.address ?? "",
+      logoUrl: restaurant.logoUrl ?? "",
+      coverUrl: restaurant.coverUrl ?? "",
+      themePrimaryColor: restaurant.themePrimaryColor ?? "#f97316",
     });
     setDialogOpen(true);
   }
@@ -162,29 +218,110 @@ export function RestaurantsContent({
     setDeleteDialogOpen(true);
   }
 
+  async function handleImageUpload(
+    file: File,
+    target: "logo" | "cover"
+  ): Promise<void> {
+    if (!file.type.startsWith("image/")) {
+      toast.error(t.errImageFormat);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(t.errImageSize);
+      return;
+    }
+
+    const setter = target === "logo" ? setUploadingLogo : setUploadingCover;
+    setter(true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || t.uploadError);
+      }
+
+      const data = await res.json();
+      setForm((prev) => ({
+        ...prev,
+        [target === "logo" ? "logoUrl" : "coverUrl"]: data.url,
+      }));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : t.uploadError);
+    } finally {
+      setter(false);
+    }
+  }
+
+  function removeImage(target: "logo" | "cover") {
+    setForm((prev) => ({
+      ...prev,
+      [target === "logo" ? "logoUrl" : "coverUrl"]: "",
+    }));
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
       if (editing) {
-        const result = await updateRestaurant(editing.id, form);
+        const payload: Record<string, unknown> = {
+          name: form.name,
+          description: form.description,
+          phone: form.phone,
+          whatsapp_number: form.whatsapp_number,
+          address: form.address,
+        };
+
+        // Only send logo/cover if changed or the restaurant is premium
+        if (editing.logoUrl !== form.logoUrl || editing.coverUrl !== form.coverUrl) {
+          payload.logo_url = form.logoUrl || null;
+          payload.cover_url = form.coverUrl || null;
+        }
+
+        // Always send theme color if changed (Pro feature)
+        if (editing.themePrimaryColor !== form.themePrimaryColor) {
+          payload.theme_primary_color = form.themePrimaryColor || null;
+        }
+
+        const result = await updateRestaurant(editing.id, payload);
         if (result.error) {
-          toast.error(result.error);
+          if (result.error === "ERR_LIMIT_OUTLET") {
+            toast.error(t.errLimitOutlet);
+          } else if (result.error === "ERR_LOGOCOVER_FEATURE_LOCKED") {
+            toast.error(t.errLogoCoverLocked);
+          } else if (result.error === "ERR_THEME_PRO_ONLY") {
+            toast.error(t.errThemeProOnly);
+          } else {
+            toast.error(result.error);
+          }
         } else {
           toast.success(t.restoUpdated);
           setRestaurants((prev) =>
             prev.map((r) => (r.id === editing.id ? { ...r, ...result.data } : r))
           );
+          setDialogOpen(false);
         }
       } else {
         const result = await createRestaurant(form);
         if (result.error) {
-          toast.error(result.error);
+          if (result.error === "ERR_LIMIT_OUTLET") {
+            toast.error(t.errLimitOutlet);
+          } else {
+            toast.error(result.error);
+          }
         } else if (result.data) {
           toast.success(t.restoCreated);
           setRestaurants((prev) => [...prev, result.data!]);
+          setDialogOpen(false);
         }
       }
-      setDialogOpen(false);
     } catch {
       toast.error(t.somethingWrong);
     } finally {
@@ -209,6 +346,85 @@ export function RestaurantsContent({
     } finally {
       setSaving(false);
     }
+  }
+
+  function ImageUploadField({
+    label,
+    imageUrl,
+    target,
+    uploading,
+    disabled,
+  }: {
+    label: string;
+    imageUrl: string;
+    target: "logo" | "cover";
+    uploading: boolean;
+    disabled: boolean;
+  }) {
+    return (
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{label}</Label>
+
+        {disabled ? (
+          <div className="relative flex flex-col items-center justify-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 bg-neutral-50/50 dark:bg-neutral-900/50">
+            <Crown className="h-6 w-6 text-amber-500 mb-2" />
+            <p className="text-xs font-bold text-neutral-500 dark:text-neutral-400 text-center">
+              {t.lockedFeature}
+            </p>
+            <p className="text-[10px] text-neutral-400 mt-1 text-center max-w-xs">
+              {t.upgradeForLogo}
+            </p>
+          </div>
+        ) : (
+          <div className="relative flex flex-col items-center justify-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 bg-neutral-50/50 dark:bg-neutral-900/50 min-h-[140px]">
+            {imageUrl ? (
+              <div className="relative w-full h-[120px] rounded-xl overflow-hidden group">
+                <Image
+                  src={imageUrl}
+                  alt={label}
+                  fill
+                  className="object-contain"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => removeImage(target)}
+                    className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer py-4">
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-8 w-8 text-orange-500 animate-spin mb-2" />
+                    <span className="text-xs font-semibold text-neutral-500">{t.uploading}</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-8 w-8 text-neutral-400 dark:text-neutral-600 mb-2" />
+                    <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">{t.uploadLabel}</span>
+                    <span className="text-[10px] text-neutral-400 mt-1">{t.uploadSpecs}</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageUpload(file, target);
+                  }}
+                  className="hidden"
+                  disabled={uploading}
+                />
+              </label>
+            )}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -259,11 +475,24 @@ export function RestaurantsContent({
               key={restaurant.id}
               className="group rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 p-5 shadow-sm hover:shadow-md transition-all duration-200"
             >
+              {/* Cover Image */}
+              {restaurant.coverUrl && (
+                <div className="relative h-24 -mx-5 -mt-5 mb-4 rounded-t-2xl overflow-hidden">
+                  <Image src={restaurant.coverUrl} alt="Cover" fill className="object-cover" />
+                </div>
+              )}
+
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white font-extrabold text-sm shadow-sm">
-                    {restaurant.name[0].toUpperCase()}
-                  </div>
+                  {restaurant.logoUrl ? (
+                    <div className="relative h-10 w-10 rounded-xl overflow-hidden shrink-0">
+                      <Image src={restaurant.logoUrl} alt="Logo" fill className="object-cover" />
+                    </div>
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white font-extrabold text-sm shadow-sm">
+                      {restaurant.name[0].toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
                       {restaurant.name}
@@ -279,7 +508,7 @@ export function RestaurantsContent({
               </div>
 
               {restaurant.description && (
-                <p className="text-xs text-neutral-505 dark:text-neutral-400 mb-3 line-clamp-2">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-3 line-clamp-2">
                   {restaurant.description}
                 </p>
               )}
@@ -315,7 +544,7 @@ export function RestaurantsContent({
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-extrabold">
               {editing ? t.editTitle : t.createTitle}
@@ -340,6 +569,105 @@ export function RestaurantsContent({
                 className="rounded-xl"
               />
             </div>
+
+            {/* Logo & Cover — only show on Edit, not Create */}
+            {editing && (
+              <>
+                <div className="border-t border-neutral-100 dark:border-neutral-800 pt-4">
+                  <ImageUploadField
+                    label={t.formLogo}
+                    imageUrl={form.logoUrl}
+                    target="logo"
+                    uploading={uploadingLogo}
+                    disabled={editing.plan === "free"}
+                  />
+                </div>
+                <div className="border-t border-neutral-100 dark:border-neutral-800 pt-4">
+                  <ImageUploadField
+                    label={t.formCover}
+                    imageUrl={form.coverUrl}
+                    target="cover"
+                    uploading={uploadingCover}
+                    disabled={editing.plan === "free"}
+                  />
+                </div>
+
+                {/* Custom Theme Color — Pro only */}
+                <div className="border-t border-neutral-100 dark:border-neutral-800 pt-4 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Palette className="h-4 w-4 text-purple-500" />
+                    <Label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                      {t.formTheme}
+                    </Label>
+                    {editing.plan !== "pro" && (
+                      <span className="text-[9px] font-bold bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full ml-auto">
+                        Pro
+                      </span>
+                    )}
+                  </div>
+
+                  {editing.plan !== "pro" ? (
+                    <div className="relative flex flex-col items-center justify-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 bg-neutral-50/50 dark:bg-neutral-900/50">
+                      <Crown className="h-6 w-6 text-amber-500 mb-2" />
+                      <p className="text-xs font-bold text-neutral-500 dark:text-neutral-400 text-center">
+                        {t.themeLocked}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                        {t.formThemeDesc}
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <input
+                            type="color"
+                            value={form.themePrimaryColor}
+                            onChange={(e) => setForm({ ...form, themePrimaryColor: e.target.value })}
+                            className="h-10 w-14 rounded-xl border border-neutral-200 dark:border-neutral-800 cursor-pointer bg-transparent"
+                          />
+                        </div>
+                        <Input
+                          value={form.themePrimaryColor}
+                          onChange={(e) => setForm({ ...form, themePrimaryColor: e.target.value })}
+                          className="rounded-xl font-mono text-sm w-32"
+                          placeholder="#f97316"
+                        />
+                        {form.themePrimaryColor !== "#f97316" && (
+                          <button
+                            type="button"
+                            onClick={() => setForm({ ...form, themePrimaryColor: "#f97316" })}
+                            className="text-[10px] font-bold text-neutral-400 hover:text-orange-500 transition-colors shrink-0"
+                          >
+                            {t.resetTheme}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-[10px] font-bold text-neutral-400">{t.previewLabel}</span>
+                        <div className="flex gap-1">
+                          {["#f97316", "#3b82f6", "#22c55e", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6"].map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setForm({ ...form, themePrimaryColor: c })}
+                              className={`h-5 w-5 rounded-full border-2 transition-all ${
+                                form.themePrimaryColor === c
+                                  ? "border-neutral-900 dark:border-white scale-110"
+                                  : "border-transparent hover:scale-105"
+                              }`}
+                              style={{ backgroundColor: c }}
+                              title={c}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="phone" className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">{t.formPhone}</Label>
               <Input

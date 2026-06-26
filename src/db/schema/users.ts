@@ -7,6 +7,12 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   role: text("role"),
+  phone: text("phone"),
+  occupation: text("occupation"),
+  address: text("address"),
+  country: text("country"),
+  province: text("province"),
+  postalCode: text("postal_code"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

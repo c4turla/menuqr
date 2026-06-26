@@ -29,6 +29,7 @@ export default async function PublicMenuPage({ params }: Props) {
         whatsappNumber: restaurant.whatsappNumber,
         slug: restaurant.slug,
         plan: restaurant.plan,
+        themePrimaryColor: restaurant.themePrimaryColor,
       }}
       items={items.map((item) => ({
         id: item.id,

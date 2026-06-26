@@ -81,6 +81,7 @@ const categoriesTranslations = {
     toastDeleted: "Kategori berhasil dihapus",
     toastReorderFailed: "Gagal mengubah urutan",
     toastSomethingWrong: "Terjadi kesalahan",
+    errLimitCategory: "Batas paket Gratis tercapai: Anda hanya dapat membuat hingga 2 kategori. Harap tingkatkan paket berlangganan Anda.",
   },
   en: {
     pageTitle: "Categories",
@@ -112,6 +113,7 @@ const categoriesTranslations = {
     toastDeleted: "Category deleted successfully",
     toastReorderFailed: "Failed to reorder",
     toastSomethingWrong: "Something went wrong",
+    errLimitCategory: "Free plan limit reached: You can only create up to 2 categories. Please upgrade your plan.",
   }
 };
 
@@ -197,7 +199,11 @@ export function CategoriesContent({ restaurants }: CategoriesContentProps) {
       }
       setDialogOpen(false);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : t.toastSomethingWrong);
+      if (err instanceof Error && err.message === "ERR_LIMIT_CATEGORY_FREE") {
+        toast.error(t.errLimitCategory);
+      } else {
+        toast.error(err instanceof Error ? err.message : t.toastSomethingWrong);
+      }
     } finally {
       setSaving(false);
     }

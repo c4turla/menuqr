@@ -18,6 +18,7 @@ export const restaurants = pgTable("restaurants", {
   coverUrl: text("cover_url"),
   plan: planEnum("plan").notNull().default("free"),
   customDomain: text("custom_domain"),
+  themePrimaryColor: text("theme_primary_color").default("#f97316"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

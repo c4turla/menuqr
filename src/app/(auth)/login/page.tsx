@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,8 +109,9 @@ export default function LoginPage() {
       <Card className="backdrop-blur-md bg-white/80 dark:bg-neutral-900/80 border border-neutral-200/50 dark:border-neutral-800/60 shadow-2xl rounded-3xl overflow-hidden transition-all duration-300">
         <CardHeader className="space-y-4 pt-8 pb-6 text-center">
           {/* Brand Logo */}
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-650 text-white font-extrabold text-base shadow-md shadow-orange-500/25">
-            MQ
+          <div className="mx-auto relative h-16 w-48 shrink-0">
+            <Image src="/lightmode.webp" alt="MenuQR Logo" fill className="object-contain dark:hidden" />
+            <Image src="/darkmode.webp" alt="MenuQR Logo" fill className="object-contain hidden dark:block" />
           </div>
           <div className="space-y-1.5">
             <CardTitle className="text-2xl font-black tracking-tight text-neutral-900 dark:text-white">

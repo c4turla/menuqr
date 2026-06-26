@@ -7,15 +7,15 @@ export default async function AnalyticsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
+  const restaurants = await getRestaurantsByOwner(session.user.id);
   const isSuperAdmin = (session.user as { role?: string })?.role === "super_admin";
 
-  let isPro = false;
+  let isPro = isSuperAdmin;
   if (!isSuperAdmin) {
-    const restaurants = await getRestaurantsByOwner(session.user.id);
     isPro = restaurants.some((r) => r.plan === "pro");
   }
 
-  if (!isSuperAdmin && !isPro) redirect("/dashboard");
+  if (!isPro) redirect("/dashboard");
 
-  return <AnalyticsContent />;
+  return <AnalyticsContent initialRestaurants={restaurants} />;
 }
