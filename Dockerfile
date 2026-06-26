@@ -14,7 +14,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Env vars saat build — pakai placeholder agar Next.js tidak crash saat prerender
-# Nilai sesungguhnya diset di runtime via docker-compose
+# Nilai sesungguhnya diset di runtime via docker-compose / EasyPanel
 ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 ENV BETTER_AUTH_SECRET="placeholder-secret-for-build-only-32chars!!"
 ENV BETTER_AUTH_URL="http://localhost:3000"
@@ -37,12 +37,23 @@ RUN addgroup --system --gid 1001 nodejs \
 # Copy public assets
 COPY --from=builder /app/public ./public
 
+# Copy drizzle migrations (dibutuhkan oleh start.sh untuk jalankan migrate)
+COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy startup script
+COPY --from=builder /app/start.sh ./start.sh
+RUN chmod +x ./start.sh
+
 # Copy Next.js standalone build output
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Buat direktori uploads dan beri permission
 RUN mkdir -p ./public/uploads && chown -R nextjs:nodejs ./public/uploads
+RUN chown nextjs:nodejs ./start.sh
 
 USER nextjs
 
@@ -51,4 +62,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+# Jalankan migrasi terlebih dahulu, lalu start app
+CMD ["sh", "./start.sh"]
