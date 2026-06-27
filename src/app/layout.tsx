@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import Script from "next/script";
@@ -19,6 +19,13 @@ export const metadata: Metadata = {
   description: "Create and manage digital menus with QR codes for your restaurant.",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -33,7 +40,7 @@ export default function RootLayout({
       <head>
         <Script id="theme-init" src="/theme-init.js" strategy="beforeInteractive" />
       </head>
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col overflow-x-hidden" suppressHydrationWarning>
         <ThemeProvider defaultTheme="system">
           {children}
         </ThemeProvider>

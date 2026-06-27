@@ -27,6 +27,7 @@ import {
   Store,
   LayoutDashboard
 } from "lucide-react";
+import { FadeIn } from "@/components/FadeIn";
 
 // Types
 type Language = "id" | "en";
@@ -391,11 +392,11 @@ export default function LandingPage() {
   }, [testimonialsGroups.length]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50/50 dark:bg-neutral-950 font-sans selection:bg-orange-500/30 selection:text-orange-900 dark:selection:text-orange-100">
+    <div className="flex min-h-screen flex-col bg-slate-50/50 dark:bg-neutral-950 font-sans selection:bg-orange-500/30 selection:text-orange-900 dark:selection:text-orange-100 overflow-x-hidden">
 
       {/* Background Decorators */}
-      <div className="absolute top-0 right-0 -z-10 h-[600px] w-[600px] bg-gradient-to-br from-orange-500/15 via-amber-500/5 to-transparent rounded-full blur-[100px] opacity-80" />
-      <div className="absolute top-[800px] left-0 -z-10 h-[500px] w-[500px] bg-gradient-to-tr from-purple-500/10 via-orange-500/5 to-transparent rounded-full blur-[100px] opacity-60" />
+      <div className="absolute top-0 right-0 -z-10 h-[400px] w-[400px] max-w-full bg-gradient-to-br from-orange-500/15 via-amber-500/5 to-transparent rounded-full blur-[100px] opacity-80" />
+      <div className="absolute top-[800px] left-0 -z-10 h-[400px] w-[400px] max-w-full bg-gradient-to-tr from-purple-500/10 via-orange-500/5 to-transparent rounded-full blur-[100px] opacity-60" />
 
       {/* Modern Navigation Header */}
       <header
@@ -574,14 +575,14 @@ export default function LandingPage() {
         <section className="bg-neutral-900 dark:bg-neutral-950 py-20 lg:py-28 relative overflow-hidden">
           <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-neutral-700 to-transparent" />
           <div className="mx-auto max-w-5xl px-5 relative z-10">
-            <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
+            <FadeIn direction="up" className="text-center max-w-3xl mx-auto space-y-4 mb-16">
               <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
                 {t.problemTitle}
               </h2>
               <p className="text-base text-neutral-400 font-medium">
                 {t.problemSubtitle}
               </p>
-            </div>
+            </FadeIn>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
@@ -590,13 +591,15 @@ export default function LandingPage() {
                 { icon: Check, title: t.pain3Title, desc: t.pain3Desc },
                 { icon: Volume2, title: t.pain4Title, desc: t.pain4Desc },
               ].map((pain, idx) => (
-                <div key={idx} className="bg-neutral-800/50 border border-neutral-700/50 rounded-3xl p-6 flex flex-col items-center text-center space-y-4 hover:bg-neutral-800 transition-colors">
-                  <div className="h-14 w-14 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
-                    <pain.icon className="h-6 w-6" />
+                <FadeIn key={idx} delay={idx * 120} direction="up">
+                  <div className="h-full bg-neutral-800/50 border border-neutral-700/50 rounded-3xl p-6 flex flex-col items-center text-center space-y-4 hover:bg-neutral-800 transition-colors">
+                    <div className="h-14 w-14 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
+                      <pain.icon className="h-6 w-6" />
+                    </div>
+                    <h3 className="text-base font-bold text-white">{pain.title}</h3>
+                    <p className="text-sm text-neutral-400">{pain.desc}</p>
                   </div>
-                  <h3 className="text-base font-bold text-white">{pain.title}</h3>
-                  <p className="text-sm text-neutral-400">{pain.desc}</p>
-                </div>
+                </FadeIn>
               ))}
             </div>
           </div>
@@ -605,7 +608,7 @@ export default function LandingPage() {
         {/* Features Section (Solution) */}
         <section id="features" className="py-20 lg:py-28 bg-white dark:bg-neutral-900/20 relative">
           <div className="mx-auto max-w-6xl px-5">
-            <div className="text-center max-w-3xl mx-auto space-y-5 mb-16">
+            <FadeIn direction="up" className="text-center max-w-3xl mx-auto space-y-5 mb-16">
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 hover:bg-orange-100 hover:text-orange-700 border-none px-3 py-1 text-xs font-bold uppercase tracking-widest">
                 {t.featuresBadge}
               </Badge>
@@ -615,7 +618,7 @@ export default function LandingPage() {
               <p className="text-base text-neutral-500 dark:text-neutral-400 font-medium leading-relaxed">
                 {t.featuresSubtitle}
               </p>
-            </div>
+            </FadeIn>
 
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {[
@@ -626,24 +629,25 @@ export default function LandingPage() {
                 { icon: Smartphone, title: t.feat5Title, desc: t.feat5Desc, color: "bg-green-500/10 text-green-600 dark:text-green-400", border: "hover:border-green-500/30" },
                 { icon: TrendingUp, title: t.feat6Title, desc: t.feat6Desc, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400", border: "hover:border-rose-500/30" },
               ].map((f, idx) => (
-                <Card
-                  key={idx}
-                  className={`bg-white dark:bg-neutral-900/80 border border-neutral-100 dark:border-neutral-800 rounded-3xl p-7 shadow-sm hover:shadow-lg transition-all duration-300 group ${f.border}`}
-                >
-                  <CardHeader className="p-0 space-y-5">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${f.color} transition-transform group-hover:scale-110 group-hover:-rotate-3`}>
-                      <f.icon className="h-6 w-6" />
-                    </div>
-                    <div className="space-y-2.5">
-                      <CardTitle className="text-lg font-black text-neutral-900 dark:text-white leading-tight">
-                        {f.title}
-                      </CardTitle>
-                      <CardDescription className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed font-medium">
-                        {f.desc}
-                      </CardDescription>
-                    </div>
-                  </CardHeader>
-                </Card>
+                <FadeIn key={idx} delay={idx * 100} direction="up">
+                  <Card
+                    className={`h-full bg-white dark:bg-neutral-900/80 border border-neutral-100 dark:border-neutral-800 rounded-3xl p-7 shadow-sm hover:shadow-lg transition-all duration-300 group ${f.border}`}
+                  >
+                    <CardHeader className="p-0 space-y-5">
+                      <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${f.color} transition-transform group-hover:scale-110 group-hover:-rotate-3`}>
+                        <f.icon className="h-6 w-6" />
+                      </div>
+                      <div className="space-y-2.5">
+                        <CardTitle className="text-lg font-black text-neutral-900 dark:text-white leading-tight">
+                          {f.title}
+                        </CardTitle>
+                        <CardDescription className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed font-medium">
+                          {f.desc}
+                        </CardDescription>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                </FadeIn>
               ))}
             </div>
           </div>
@@ -652,14 +656,14 @@ export default function LandingPage() {
         {/* How It Works Section */}
         <section id="how-it-works" className="py-20 lg:py-28 bg-slate-50 dark:bg-neutral-950 border-t border-neutral-100 dark:border-neutral-900 relative">
           <div className="mx-auto max-w-5xl px-5">
-            <div className="text-center max-w-2xl mx-auto space-y-5 mb-20">
+            <FadeIn direction="up" className="text-center max-w-2xl mx-auto space-y-5 mb-20">
               <h2 className="text-3xl sm:text-4xl font-black text-neutral-900 dark:text-white tracking-tight">
                 {t.howItWorksTitle}
               </h2>
               <p className="text-base text-neutral-500 dark:text-neutral-400">
                 {t.howItWorksSubtitle}
               </p>
-            </div>
+            </FadeIn>
 
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4 relative">
               {/* Connector line for desktop */}
@@ -671,19 +675,21 @@ export default function LandingPage() {
                 { step: "3", title: t.step3Title, desc: t.step3Desc },
                 { step: "4", title: t.step4Title, desc: t.step4Desc },
               ].map((s, i) => (
-                <div key={i} className="relative bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-3xl p-6 text-center space-y-5 shadow-sm hover:shadow-xl hover:border-orange-500/30 transition-all duration-300 group">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white text-xl font-black shadow-lg shadow-orange-500/25 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 relative z-10">
-                    {s.step}
+                <FadeIn key={i} delay={i * 150} direction="up">
+                  <div className="h-full relative bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-3xl p-6 text-center space-y-5 shadow-sm hover:shadow-xl hover:border-orange-500/30 transition-all duration-300 group">
+                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white text-xl font-black shadow-lg shadow-orange-500/25 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 relative z-10">
+                      {s.step}
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-base font-black text-neutral-900 dark:text-white">
+                        {s.title}
+                      </h3>
+                      <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed font-medium">
+                        {s.desc}
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-base font-black text-neutral-900 dark:text-white">
-                      {s.title}
-                    </h3>
-                    <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed font-medium">
-                      {s.desc}
-                    </p>
-                  </div>
-                </div>
+                </FadeIn>
               ))}
             </div>
           </div>
@@ -694,7 +700,7 @@ export default function LandingPage() {
           <div className="absolute top-0 right-1/2 translate-x-1/2 -z-10 h-[600px] w-[800px] bg-orange-500/5 rounded-full blur-[100px]" />
 
           <div className="mx-auto max-w-6xl px-5">
-            <div className="text-center max-w-3xl mx-auto space-y-6 mb-16">
+            <FadeIn direction="up" className="text-center max-w-3xl mx-auto space-y-6 mb-16">
               <h2 className="text-3xl sm:text-5xl font-black text-neutral-900 dark:text-white tracking-tight">
                 {t.pricingTitle}
               </h2>
@@ -726,10 +732,11 @@ export default function LandingPage() {
                   </span>
                 </button>
               </div>
-            </div>
+            </FadeIn>
 
             <div className="grid gap-8 lg:grid-cols-3 max-w-5xl mx-auto items-center">
               {/* Free Plan */}
+              <FadeIn direction="up" delay={0}>
               <div className="bg-gradient-to-br from-white to-white hover:from-white hover:to-orange-500/5 dark:from-neutral-900 dark:to-neutral-900 dark:hover:from-neutral-900 dark:hover:to-orange-500/5 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 shadow-sm hover:shadow-xl hover:shadow-orange-500/5 hover:-translate-y-2 hover:scale-[1.02] transition-all duration-300 h-fit cursor-pointer">
                 <div className="space-y-4 mb-8">
                   <h3 className="text-xl font-black text-neutral-900 dark:text-white">{t.freeName}</h3>
@@ -752,8 +759,10 @@ export default function LandingPage() {
                   ))}
                 </ul>
               </div>
+              </FadeIn>
 
               {/* Basic Plan (Popular) */}
+              <FadeIn direction="up" delay={150}>
               <div className="bg-gradient-to-br from-neutral-900 to-neutral-900 hover:from-neutral-900 hover:to-orange-950/20 border-2 border-orange-500 rounded-[2rem] p-8 shadow-2xl shadow-orange-500/25 relative transform lg:-translate-y-4 hover:-translate-y-6 hover:scale-[1.03] z-10 text-white transition-all duration-300 cursor-pointer hover:shadow-orange-500/35">
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-orange-500 to-amber-500 text-white px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-lg">
                   {t.basicBadge}
@@ -787,8 +796,10 @@ export default function LandingPage() {
                   ))}
                 </ul>
               </div>
+              </FadeIn>
 
               {/* Pro Plan */}
+              <FadeIn direction="up" delay={300}>
               <div className="bg-gradient-to-br from-white to-white hover:from-white hover:to-orange-500/5 dark:from-neutral-900 dark:to-neutral-900 dark:hover:from-neutral-900 dark:hover:to-orange-500/5 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 shadow-sm hover:shadow-xl hover:shadow-orange-500/5 hover:-translate-y-2 hover:scale-[1.02] transition-all duration-300 h-fit relative cursor-pointer">
                 <div className="absolute top-6 right-6">
                   <Badge variant="secondary" className="bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 border-none px-2.5 py-0.5">{t.proBadge}</Badge>
@@ -822,6 +833,7 @@ export default function LandingPage() {
                   ))}
                 </ul>
               </div>
+              </FadeIn>
             </div>
           </div>
         </section>
@@ -829,16 +841,16 @@ export default function LandingPage() {
         {/* Testimonials Slider */}
         <section id="testimonials" className="py-20 lg:py-28 bg-slate-50 dark:bg-neutral-950 border-t border-neutral-100 dark:border-neutral-900">
           <div className="mx-auto max-w-6xl px-5">
-            <div className="text-center max-w-2xl mx-auto space-y-5 mb-16">
+            <FadeIn direction="up" className="text-center max-w-2xl mx-auto space-y-5 mb-16">
               <h2 className="text-3xl sm:text-4xl font-black text-neutral-900 dark:text-white tracking-tight">
                 {t.testiTitle}
               </h2>
               <p className="text-base text-neutral-500 dark:text-neutral-400">
                 {t.testiSubtitle}
               </p>
-            </div>
+            </FadeIn>
 
-            <div className="relative">
+            <FadeIn direction="up" delay={100} className="relative">
               <div className="grid gap-6 md:grid-cols-3 transition-all duration-500">
                 {testimonialsGroups[activeSlide].map((item, idx) => (
                   <div key={idx} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 shadow-sm flex flex-col justify-between space-y-6">
@@ -877,21 +889,21 @@ export default function LandingPage() {
                   />
                 ))}
               </div>
-            </div>
+            </FadeIn>
           </div>
         </section>
 
         {/* FAQ Section */}
         <section id="faq" className="py-20 lg:py-28 bg-white dark:bg-neutral-900/20 border-t border-neutral-100 dark:border-neutral-900">
           <div className="mx-auto max-w-4xl px-5">
-            <div className="text-center max-w-2xl mx-auto space-y-4 mb-16">
+            <FadeIn direction="up" className="text-center max-w-2xl mx-auto space-y-4 mb-16">
               <h2 className="text-3xl sm:text-4xl font-black text-neutral-900 dark:text-white tracking-tight">
                 {t.faqTitle}
               </h2>
               <p className="text-base text-neutral-500 dark:text-neutral-400">
                 {t.faqSubtitle}
               </p>
-            </div>
+            </FadeIn>
 
             <div className="max-w-3xl mx-auto space-y-4">
               {[
@@ -946,7 +958,7 @@ export default function LandingPage() {
         <section className="px-5 py-24 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black dark:from-neutral-950 dark:to-black text-white text-center relative overflow-hidden">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[800px] bg-orange-500/20 rounded-full blur-[120px] -z-10" />
 
-          <div className="mx-auto max-w-3xl space-y-8 relative z-10">
+          <FadeIn direction="up" className="mx-auto max-w-3xl space-y-8 relative z-10">
             <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">
               {t.ctaTitle}
             </h2>
@@ -964,7 +976,7 @@ export default function LandingPage() {
             <p className="text-sm text-neutral-500 font-bold uppercase tracking-widest mt-6">
               {t.heroNoCreditCard}
             </p>
-          </div>
+          </FadeIn>
         </section>
       </main>
 
