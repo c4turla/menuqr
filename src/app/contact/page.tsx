@@ -194,8 +194,8 @@ export default function ContactPage() {
                   <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
                     {currentT.cardEmailDesc}
                   </p>
-                  <a href="mailto:hello@menuqr.com" className="text-xs font-bold text-orange-500 block mt-2 hover:underline">
-                    hello@menuqr.com
+                  <a href="mailto:hello@menuqr.my.id" className="text-xs font-bold text-orange-500 block mt-2 hover:underline">
+                    hello@menuqr.my.id
                   </a>
                 </div>
               </div>
@@ -212,8 +212,8 @@ export default function ContactPage() {
                   <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
                     {currentT.cardWaDesc}
                   </p>
-                  <a href="https://wa.me/628123456789" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-green-500 block mt-2 hover:underline">
-                    +62 812-3456-789
+                  <a href="https://wa.me/6285340517686" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-green-500 block mt-2 hover:underline">
+                    +62 853-4051-7686
                   </a>
                 </div>
               </div>

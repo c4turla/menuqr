@@ -83,7 +83,7 @@ const helpTranslations = {
     planPro: "Paket Pro",
     planProFeatures: ["Restoran Unlimited", "Kategori & Menu Unlimited", "QR Table + Nomor Meja", "Custom QR Design", "Analitik Lanjutan", "Domain Kustom", "Dukungan Prioritas"],
     contactEmail: "Email",
-    contactEmailDesc: "Kirimi kami email di support@menuqr.com",
+    contactEmailDesc: "Kirimi kami email di hello@menuqr.my.id",
     contactWhatsapp: "WhatsApp",
     contactWhatsappDesc: "Chat langsung dengan tim kami",
     contactDocs: "Dokumentasi",
@@ -148,7 +148,7 @@ const helpTranslations = {
     planPro: "Pro Plan",
     planProFeatures: ["Unlimited Restaurants", "Unlimited Categories & Menu", "QR Table + Table Number", "Custom QR Design", "Advanced Analytics", "Custom Domain", "Priority Support"],
     contactEmail: "Email",
-    contactEmailDesc: "Send us an email at support@menuqr.com",
+    contactEmailDesc: "Send us an email at hello@menuqr.my.id",
     contactWhatsapp: "WhatsApp",
     contactWhatsappDesc: "Chat directly with our team",
     contactDocs: "Documentation",
@@ -251,7 +251,7 @@ export function HelpContent() {
   const t = helpTranslations[lang];
 
   function copyEmail() {
-    navigator.clipboard.writeText("support@menuqr.com");
+    navigator.clipboard.writeText("hello@menuqr.my.id");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -430,7 +430,7 @@ export function HelpContent() {
               className="flex items-center gap-1.5 text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors"
             >
               {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-              {copied ? t.copied : "support@menuqr.com"}
+              {copied ? t.copied : "hello@menuqr.my.id"}
             </button>
           </div>
           <div className="p-5">
@@ -440,12 +440,12 @@ export function HelpContent() {
             </div>
             <p className="text-xs text-neutral-400 mb-3">{t.contactWhatsappDesc}</p>
             <a
-              href="https://wa.me/6281234567890"
+              href="https://wa.me/6285340517686"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-500 hover:text-emerald-600 transition-colors"
             >
-              +62 812 3456 7890
+              +62 853 4051 7686
               <ExternalLink className="h-3 w-3" />
             </a>
           </div>
