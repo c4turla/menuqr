@@ -18,6 +18,7 @@ import {
   Check,
   Loader2,
   XCircle,
+  Utensils,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +69,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
   const [trackingOrders, setTrackingOrders] = useState<any[]>([]);
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [orderType, setOrderType] = useState<"dine_in" | "takeaway">("dine_in");
+  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -77,9 +79,21 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
         setTableNumber(table);
       }
 
+      const trackId = params.get("track");
       const storageKey = `menuqr_active_orders_${restaurant.id}`;
       try {
-        const ids = JSON.parse(localStorage.getItem(storageKey) || "[]");
+        let ids = JSON.parse(localStorage.getItem(storageKey) || "[]");
+        if (trackId && !ids.includes(trackId)) {
+          ids.push(trackId);
+          localStorage.setItem(storageKey, JSON.stringify(ids));
+          
+          // Clean URL parameters by replacing state without track
+          const newParams = new URLSearchParams(window.location.search);
+          newParams.delete("track");
+          const queryStr = newParams.toString();
+          const newUrl = window.location.pathname + (queryStr ? `?${queryStr}` : '');
+          window.history.replaceState({}, '', newUrl);
+        }
         setActiveOrderIds(ids);
       } catch (e) { }
     }
@@ -262,27 +276,67 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
   };
 
   // Generate WhatsApp text and redirect
-  const handleSendOrder = () => {
+  const handleSendOrder = async () => {
     if (!restaurant.whatsappNumber) return;
 
-    const isPremium = restaurant.plan === "basic" || restaurant.plan === "pro";
-    const hasTable = tableNumber && isPremium;
+    setIsSubmittingOrder(true);
+    const toastId = toast.loading("Menyiapkan pesanan dan menghubungkan ke WhatsApp...");
+
+    const orderItems = Object.entries(cart).map(([itemId, qty]) => {
+      const item = items.find((i) => i.id === itemId);
+      return {
+        menuItemId: itemId,
+        name: item?.name || "Item",
+        price: item?.price || "0",
+        quantity: qty,
+      };
+    });
+
+    let orderId: string | undefined;
+
+    try {
+      const res = await createOrderAction(restaurant.id, {
+        tableNumber: tableNumber || undefined,
+        customerName: customerName.trim() || "Pelanggan via WA",
+        orderType: orderType,
+        items: orderItems,
+      });
+
+      if (res.data?.id) {
+        orderId = res.data.id;
+        const storageKey = `menuqr_active_orders_${restaurant.id}`;
+        let currentActive = [];
+        try {
+          currentActive = JSON.parse(localStorage.getItem(storageKey) || "[]");
+        } catch (e) { }
+        currentActive.push(orderId);
+        localStorage.setItem(storageKey, JSON.stringify(currentActive));
+        setActiveOrderIds(currentActive);
+      }
+    } catch (e) {
+      console.error("Gagal menyimpan pesanan untuk pelacakan:", e);
+    }
+
+    const hasTable = !!tableNumber;
 
     let message = `Halo *${restaurant.name}*,\n`;
-    if (isPremium) {
-      const typeStr = orderType === "dine_in" ? "Makan di tempat" : "Bungkus (Takeaway)";
-      if (hasTable && orderType === "dine_in") {
-        message += `Penyajian: *${typeStr} (MEJA ${tableNumber})*\n\n`;
-      } else {
-        message += `Penyajian: *${typeStr}*\n\n`;
-      }
+    const typeStr = orderType === "dine_in" ? "Makan di tempat" : "Bungkus (Takeaway)";
+    
+    if (hasTable && orderType === "dine_in") {
+      message += `Penyajian: *${typeStr} (MEJA ${tableNumber})*\n`;
     } else {
-      if (hasTable) {
-        message += `Saya memesan dari *MEJA ${tableNumber}*:\n\n`;
-      } else {
-        message += `Saya ingin memesan:\n\n`;
-      }
+      message += `Penyajian: *${typeStr}*\n`;
     }
+
+    if (customerName.trim()) {
+      message += `Nama Pelanggan: *${customerName.trim()}*\n`;
+    }
+
+    if (orderId) {
+      message += `ID Pesanan: *#${orderId.slice(-6).toUpperCase()}*\n`;
+    }
+    
+    message += `\n`;
 
     Object.entries(cart).forEach(([itemId, qty]) => {
       const item = items.find((i) => i.id === itemId);
@@ -291,7 +345,19 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
       }
     });
 
-    message += `\n*Total: ${formatPrice(totalPrice)}*\n\nTerima kasih!`;
+    message += `\n*Total: ${formatPrice(totalPrice)}*\n\n`;
+
+    if (orderId) {
+      const trackUrl = `${window.location.origin}/r/${restaurant.slug}?track=${orderId}`;
+      message += `Lacak status pesanan secara real-time di sini:\n${trackUrl}\n\n`;
+    }
+
+    message += `Terima kasih!`;
+
+    setCart({}); // clear cart
+    toast.success("Membuka WhatsApp...", { id: toastId });
+    setIsCartOpen(false);
+    setIsSubmittingOrder(false);
 
     const cleanPhone = restaurant.whatsappNumber.replace(/\D/g, "");
     // Ensure Indonesian phone starts with 62 instead of 0
@@ -306,11 +372,11 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
 
   return (
     <div
-      className="mx-auto flex min-h-screen max-w-md flex-col bg-neutral-50 dark:bg-neutral-950 pb-28 shadow-xl relative"
+      className="w-full mx-auto flex min-h-screen max-w-md flex-col bg-neutral-50 dark:bg-neutral-950 pb-28 shadow-xl relative border-x border-neutral-200/20 dark:border-neutral-800/40"
       style={{ "--theme-primary": restaurant.themePrimaryColor || "#f97316" } as React.CSSProperties}
     >
       {/* Cover Image */}
-      <div className="relative h-52 w-full bg-neutral-200 dark:bg-neutral-800">
+      <div className="relative h-60 w-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
         {restaurant.coverUrl ? (
           <Image
             src={restaurant.coverUrl}
@@ -327,72 +393,73 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
             }}
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/80 via-neutral-950/25 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/20 to-black/35 z-10" />
       </div>
 
-      {/* Restaurant Header */}
-      <div className="relative px-4 pt-0 pb-4 -mt-12">
-        <div className="flex items-end gap-3 mb-3">
-          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border-[3px] border-white dark:border-neutral-950 bg-white shadow-lg">
-            {restaurant.logoUrl ? (
-              <Image
-                src={restaurant.logoUrl}
-                alt={restaurant.name}
-                fill
-                className="object-cover"
-              />
-            ) : (
-              <div
-                className="flex h-full w-full items-center justify-center text-white font-extrabold text-xl"
-                style={{ backgroundColor: restaurant.themePrimaryColor || "#f97316" }}
-              >
-                {restaurant.name[0].toUpperCase()}
+      {/* Floating Restaurant Card */}
+      <div className="relative px-4 -mt-16 z-20">
+        <div className="bg-white dark:bg-neutral-900 rounded-3xl p-5 shadow-xl border border-neutral-100/70 dark:border-neutral-800/80 backdrop-blur-md bg-white/95 dark:bg-neutral-900/95">
+          <div className="flex gap-4">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border-2 border-neutral-100 dark:border-neutral-850 bg-white">
+              {restaurant.logoUrl ? (
+                <Image
+                  src={restaurant.logoUrl}
+                  alt={restaurant.name}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div
+                  className="flex h-full w-full items-center justify-center text-white font-extrabold text-lg"
+                  style={{ backgroundColor: restaurant.themePrimaryColor || "#f97316" }}
+                >
+                  {restaurant.name[0].toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <h1 className="text-base font-black text-neutral-900 dark:text-white leading-tight truncate">
+                  {restaurant.name}
+                </h1>
+                {tableNumber && (restaurant.plan === "basic" || restaurant.plan === "pro") && (
+                  <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-[10px] font-black tracking-wide">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--theme-primary)] animate-pulse" />
+                    Meja {tableNumber}
+                  </span>
+                )}
               </div>
-            )}
-          </div>
-          <div className="pb-1 min-w-0">
-            <h1 className="text-lg font-black text-white leading-tight drop-shadow-sm truncate">
-              {restaurant.name}
-            </h1>
-            {restaurant.address && (
-              <div className="flex items-center gap-1 mt-0.5 text-[11px] text-neutral-300">
-                <MapPin className="h-3 w-3 shrink-0 text-[var(--theme-primary)]" />
-                <span className="truncate max-w-[190px]">{restaurant.address}</span>
-              </div>
-            )}
-            {tableNumber && (restaurant.plan === "basic" || restaurant.plan === "pro") && (
-              <div
-                className="inline-flex items-center gap-1 mt-1.5 px-3 py-1 rounded-full text-white text-[10px] font-black uppercase tracking-wider shadow-sm"
-                style={{ backgroundColor: restaurant.themePrimaryColor || "#f97316" }}
-              >
-                Meja {tableNumber}
-              </div>
-            )}
+              {restaurant.address && (
+                <div className="flex items-center gap-1 mt-1 text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">
+                  <MapPin className="h-3 w-3 shrink-0 text-neutral-405" />
+                  <span className="truncate">{restaurant.address}</span>
+                </div>
+              )}
+              {restaurant.description && (
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed font-medium mt-2 border-t border-neutral-100 dark:border-neutral-800/60 pt-2 line-clamp-2">
+                  {restaurant.description}
+                </p>
+              )}
+            </div>
           </div>
         </div>
-
-        {restaurant.description && (
-          <p className="text-[13px] text-neutral-500 dark:text-neutral-400 leading-relaxed font-medium mt-1">
-            {restaurant.description}
-          </p>
-        )}
       </div>
 
       {/* Sticky Filter & Search */}
-      <div className="sticky top-0 z-10 bg-neutral-50/95 dark:bg-neutral-950/95 px-4 py-3 backdrop-blur border-b border-neutral-100 dark:border-neutral-900 space-y-2.5">
+      <div className="sticky top-0 z-30 bg-neutral-50/95 dark:bg-neutral-950/95 px-4 py-3.5 backdrop-blur-md border-b border-neutral-200/30 dark:border-neutral-900/60 space-y-2.5">
         {/* Search Input */}
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <Input
             placeholder="Cari makanan atau minuman..."
-            className="pl-10 pr-4 h-11 rounded-full border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-sm shadow-sm focus-visible:ring-orange-500"
+            className="pl-10 pr-4 h-10 rounded-2xl border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs shadow-sm focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] transition-all"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         {/* Category horizontal scrolling bar */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
+        <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4 scrollbar-none">
           <button
             onClick={() => setSelectedCategory("all")}
             className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200 ${selectedCategory === "all"
@@ -417,86 +484,96 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
         </div>
       </div>
 
-      {/* Menu items list */}
-      <div className="px-4 mt-4 flex-1 space-y-6">
-        {/* Featured Section */}
+      {/* Menu items container */}
+      <div className="mt-4 flex-1 space-y-7">
+        {/* Featured Section (Chef Recommendations Slider) */}
         {featuredItems.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center gap-1.5">
-              <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
-              <h2 className="text-sm font-extrabold text-neutral-800 dark:text-neutral-200">Rekomendasi</h2>
+            <div className="flex items-center justify-between px-4">
+              <div className="flex items-center gap-1.5">
+                <Star className="h-4 w-4 fill-amber-500 text-amber-500 animate-pulse" />
+                <h2 className="text-xs font-extrabold text-neutral-900 dark:text-white tracking-tight uppercase">Rekomendasi</h2>
+              </div>
+              <span className="text-[10px] font-bold text-neutral-400">{featuredItems.length} menu</span>
             </div>
-            <div className="grid gap-3">
+            
+            <div className="grid grid-cols-2 gap-3 px-4">
               {featuredItems.map((item) => (
                 <div
                   key={item.id}
-                  className={`flex gap-3 bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border shadow-sm relative overflow-hidden ${!item.available
-                      ? "border-neutral-100 dark:border-neutral-800/40 opacity-50"
-                      : "border-neutral-100 dark:border-neutral-800/80"
-                    }`}
+                  onClick={() => item.available && setSelectedMenuItem(item)}
+                  className={`w-full bg-white dark:bg-neutral-900 rounded-3xl border border-neutral-100/80 dark:border-neutral-850 shadow-sm flex flex-col justify-between relative overflow-hidden transition-all duration-300 hover:shadow-md cursor-pointer ${
+                    !item.available ? "opacity-60" : ""
+                  }`}
                 >
-                  {!item.available && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 dark:bg-neutral-950/60 backdrop-blur-[2px]">
-                      <span className="px-4 py-1.5 rounded-full bg-red-500/90 text-white text-[11px] font-black uppercase tracking-wider shadow-lg">
-                        Habis
-                      </span>
+                  <div className="relative h-28 w-full bg-neutral-100 dark:bg-neutral-800">
+                    {/* Animated Star Badge */}
+                    <div className="absolute top-2.5 left-2.5 z-10 bg-amber-400 text-neutral-950 p-1 rounded-full shadow-md animate-bounce">
+                      <Star className="h-2.5 w-2.5 fill-current" />
                     </div>
-                  )}
-                  {item.imageUrl && (
-                    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
+
+                    {item.imageUrl ? (
                       <Image
                         src={item.imageUrl}
                         alt={item.name}
                         fill
-                        className={`object-cover ${!item.available ? "grayscale" : ""}`}
+                        className="object-cover"
                       />
-                    </div>
-                  )}
-                  <div className="flex flex-col flex-1 min-w-0 justify-between py-0.5">
-                    <div>
-                      <h4 className={`text-sm font-bold leading-snug ${!item.available ? "text-neutral-400 dark:text-neutral-500" : "text-neutral-900 dark:text-white"
-                        }`}>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-850 dark:to-neutral-900">
+                        <Utensils className="h-8 w-8 text-neutral-300 dark:text-neutral-600" />
+                      </div>
+                    )}
+                    {!item.available && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <span className="px-2.5 py-1 rounded-full bg-red-500 text-[9px] font-black uppercase text-white tracking-wider">
+                          Habis
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-3 flex-1 flex flex-col justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <h4 className="text-xs font-bold text-neutral-900 dark:text-white leading-tight line-clamp-1">
                         {item.name}
                       </h4>
                       {item.description && (
-                        <p className="text-xs text-neutral-400 dark:text-neutral-500 line-clamp-2 mt-1 leading-relaxed">
+                        <p className="text-[10px] text-neutral-450 dark:text-neutral-500 line-clamp-1 font-medium leading-normal">
                           {item.description}
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className={`text-sm font-black ${!item.available ? "text-neutral-300 dark:text-neutral-600" : "text-[var(--theme-primary)]"
-                        }`}>
+                    
+                    <div className="flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
+                      <span className="text-xs font-black text-[var(--theme-primary)]">
                         {formatPrice(Number(item.price))}
                       </span>
-                      {!item.available ? (
-                        <span className="text-xs font-bold text-neutral-400 dark:text-neutral-500 italic">
-                          Habis
-                        </span>
-                      ) : cart[item.id] ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateQuantity(item.id, -1)}
-                            className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 active:scale-95 transition-transform"
-                          >
-                            <Minus className="h-3.5 w-3.5" />
-                          </button>
-                          <span className="text-sm font-bold w-5 text-center">{cart[item.id]}</span>
+                      {item.available && (
+                        cart[item.id] ? (
+                          <div className="flex items-center gap-1.5 bg-neutral-50 dark:bg-neutral-800 rounded-full p-0.5 border border-neutral-150 dark:border-neutral-750">
+                            <button
+                              onClick={() => updateQuantity(item.id, -1)}
+                              className="flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm"
+                            >
+                              <Minus className="h-2.5 w-2.5" />
+                            </button>
+                            <span className="text-[10px] font-black w-4 text-center">{cart[item.id]}</span>
+                            <button
+                              onClick={() => updateQuantity(item.id, 1)}
+                              className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow-sm"
+                            >
+                              <Plus className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             onClick={() => updateQuantity(item.id, 1)}
-                            className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white hover:opacity-90 shadow-sm active:scale-95 transition-transform"
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white hover:scale-105 active:scale-95 transition-all shadow-sm"
                           >
-                            <Plus className="h-3.5 w-3.5" />
+                            <Plus className="h-3 w-3" />
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => updateQuantity(item.id, 1)}
-                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-xs font-bold hover:bg-[var(--theme-primary)]/20 active:scale-95 transition-all"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Tambah
-                        </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -507,90 +584,95 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
         )}
 
         {/* Regular Items Grouped by Category */}
-        {Object.entries(groupedItems).map(([catName, catItems]) => (
-          <div key={catName} className="space-y-3">
-            <h3 className="text-[11px] font-black text-neutral-400 dark:text-neutral-600 uppercase tracking-widest">
-              {catName}
-            </h3>
-            <div className="grid gap-3">
-              {catItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex gap-3 bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border shadow-sm relative overflow-hidden ${!item.available
-                      ? "border-neutral-100 dark:border-neutral-800/40 opacity-50"
-                      : "border-neutral-100 dark:border-neutral-800/80"
+        <div className="px-4 space-y-7 pb-6 flex-1">
+          {Object.entries(groupedItems).map(([catName, catItems]) => (
+            <div key={catName} className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-3.5 w-1 rounded-full bg-[var(--theme-primary)]" />
+                <h3 className="text-xs font-black text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">
+                  {catName}
+                </h3>
+              </div>
+              
+              <div className="grid gap-3.5">
+                {catItems.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => item.available && setSelectedMenuItem(item)}
+                    className={`flex gap-3 bg-white dark:bg-neutral-900 p-3 rounded-2xl border border-neutral-100/70 dark:border-neutral-850 shadow-sm relative overflow-hidden transition-all duration-300 hover:shadow-md cursor-pointer ${
+                      !item.available ? "opacity-60" : ""
                     }`}
-                >
-                  {!item.available && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 dark:bg-neutral-950/60 backdrop-blur-[2px]">
-                      <span className="px-4 py-1.5 rounded-full bg-red-500/90 text-white text-[11px] font-black uppercase tracking-wider shadow-lg">
-                        Habis
-                      </span>
-                    </div>
-                  )}
-                  {item.imageUrl && (
-                    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
-                      <Image
-                        src={item.imageUrl}
-                        alt={item.name}
-                        fill
-                        className={`object-cover ${!item.available ? "grayscale" : ""}`}
-                      />
-                    </div>
-                  )}
-                  <div className="flex flex-col flex-1 min-w-0 justify-between py-0.5">
-                    <div>
-                      <h4 className={`text-sm font-bold leading-snug ${!item.available ? "text-neutral-400 dark:text-neutral-500" : "text-neutral-900 dark:text-white"
-                        }`}>
-                        {item.name}
-                      </h4>
-                      {item.description && (
-                        <p className="text-xs text-neutral-400 dark:text-neutral-500 line-clamp-2 mt-1 leading-relaxed">
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className={`text-sm font-black ${!item.available ? "text-neutral-300 dark:text-neutral-600" : "text-[var(--theme-primary)]"
-                        }`}>
-                        {formatPrice(Number(item.price))}
-                      </span>
-                      {!item.available ? (
-                        <span className="text-xs font-bold text-neutral-400 dark:text-neutral-500 italic">
-                          Habis
+                  >
+                    <div className="flex-1 flex flex-col justify-between py-0.5 min-w-0 pr-1">
+                      <div>
+                        <h4 className="text-xs font-extrabold text-neutral-900 dark:text-white leading-snug line-clamp-2">
+                          {item.name}
+                        </h4>
+                        {item.description && (
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 line-clamp-2 mt-1 leading-relaxed font-medium">
+                            {item.description}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center justify-between mt-2.5" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs font-black text-[var(--theme-primary)]">
+                          {formatPrice(Number(item.price))}
                         </span>
-                      ) : cart[item.id] ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateQuantity(item.id, -1)}
-                            className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 active:scale-95 transition-transform"
-                          >
-                            <Minus className="h-3.5 w-3.5" />
-                          </button>
-                          <span className="text-sm font-bold w-5 text-center">{cart[item.id]}</span>
-                          <button
-                            onClick={() => updateQuantity(item.id, 1)}
-                            className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white hover:opacity-90 shadow-sm active:scale-95 transition-transform"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => updateQuantity(item.id, 1)}
-                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-xs font-bold hover:bg-[var(--theme-primary)]/20 active:scale-95 transition-all"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Tambah
-                        </button>
-                      )}
+                        
+                        {item.available && (
+                          cart[item.id] ? (
+                            <div className="flex items-center gap-1.5 bg-neutral-50 dark:bg-neutral-800 rounded-full p-0.5 border border-neutral-150 dark:border-neutral-750">
+                              <button
+                                onClick={() => updateQuantity(item.id, -1)}
+                                className="flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm"
+                              >
+                                <Minus className="h-2.5 w-2.5" />
+                              </button>
+                              <span className="text-[10px] font-black w-4 text-center">{cart[item.id]}</span>
+                              <button
+                                onClick={() => updateQuantity(item.id, 1)}
+                                className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow-sm"
+                              >
+                                <Plus className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => updateQuantity(item.id, 1)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-[10px] font-black hover:bg-[var(--theme-primary)]/20 transition-all active:scale-95 shadow-sm"
+                            >
+                              <Plus className="h-3 w-3" />
+                              Tambah
+                            </button>
+                          )
+                        )}
+                      </div>
                     </div>
+                    
+                    {item.imageUrl && (
+                      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-100 dark:border-neutral-800">
+                        <Image
+                          src={item.imageUrl}
+                          alt={item.name}
+                          fill
+                          className={`object-cover ${!item.available ? "grayscale" : ""}`}
+                        />
+                        {!item.available && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <span className="px-1.5 py-0.5 rounded-md bg-red-500 text-[8px] font-black uppercase text-white tracking-wider">
+                              Habis
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
 
         {filteredItems.length === 0 && (
           <div className="py-16 text-center text-neutral-400 dark:text-neutral-600">
@@ -931,6 +1013,83 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
               Bersihkan Riwayat Lacak
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Food Detail Modal */}
+      <Dialog open={!!selectedMenuItem} onOpenChange={(open) => !open && setSelectedMenuItem(null)}>
+        <DialogContent className="max-w-xs rounded-3xl p-0 overflow-hidden gap-0 border-none bg-white dark:bg-neutral-900">
+          {selectedMenuItem && (
+            <div className="flex flex-col">
+              <div className="relative h-56 w-full bg-neutral-100 dark:bg-neutral-800">
+                {selectedMenuItem.imageUrl ? (
+                  <Image src={selectedMenuItem.imageUrl} alt={selectedMenuItem.name} fill className="object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-100 to-neutral-200 dark:from-neutral-800 dark:to-neutral-900">
+                    <Utensils className="h-12 w-12 text-neutral-300 dark:text-neutral-600" />
+                  </div>
+                )}
+                <button
+                  onClick={() => setSelectedMenuItem(null)}
+                  className="absolute top-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className="p-5 space-y-4">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white leading-tight">
+                      {selectedMenuItem.name}
+                    </h3>
+                    <span className="text-xs font-black text-[var(--theme-primary)] shrink-0">
+                      {formatPrice(Number(selectedMenuItem.price))}
+                    </span>
+                  </div>
+                  {selectedMenuItem.categoryName && (
+                    <span className="inline-block text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+                      {selectedMenuItem.categoryName}
+                    </span>
+                  )}
+                </div>
+                
+                {selectedMenuItem.description && (
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed font-medium">
+                    {selectedMenuItem.description}
+                  </p>
+                )}
+                
+                <div className="pt-2 flex items-center justify-between gap-3 border-t border-neutral-100 dark:border-neutral-800">
+                  <span className="text-[10px] font-bold text-neutral-400">Atur Jumlah</span>
+                  {cart[selectedMenuItem.id] ? (
+                    <div className="flex items-center gap-3 bg-neutral-100 dark:bg-neutral-800 rounded-full p-1 border border-neutral-200/50 dark:border-neutral-700">
+                      <button
+                        onClick={() => updateQuantity(selectedMenuItem.id, -1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="text-xs font-black w-4 text-center">{cart[selectedMenuItem.id]}</span>
+                      <button
+                        onClick={() => updateQuantity(selectedMenuItem.id, 1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow-sm"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => updateQuantity(selectedMenuItem.id, 1)}
+                      className="bg-[var(--theme-primary)] hover:opacity-90 text-white rounded-xl px-5 h-9 text-xs font-black shadow-md"
+                    >
+                      Tambah ke Keranjang
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

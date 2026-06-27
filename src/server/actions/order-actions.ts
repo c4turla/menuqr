@@ -54,10 +54,6 @@ export async function createOrderAction(
       return { error: "Restoran tidak ditemukan" };
     }
 
-    if (restaurant.plan !== "basic" && restaurant.plan !== "pro") {
-      return { error: "Pemesanan langsung hanya tersedia pada paket Basic & Pro" };
-    }
-
     if (!data.items || data.items.length === 0) {
       return { error: "Pesanan tidak boleh kosong" };
     }

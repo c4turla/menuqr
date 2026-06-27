@@ -512,7 +512,7 @@ export default function LandingPage() {
             </div>
 
             {/* Pain-Agitating Headline */}
-            <h1 className="text-5xl font-black tracking-tight text-neutral-900 dark:text-white sm:text-7xl max-w-4xl mx-auto leading-[1.1] animate-in slide-in-from-bottom-6 fade-in duration-700 delay-100">
+            <h1 className="text-3xl font-black tracking-tight text-neutral-900 dark:text-white sm:text-5xl md:text-7xl max-w-4xl mx-auto leading-[1.15] sm:leading-[1.1] animate-in slide-in-from-bottom-6 fade-in duration-700 delay-100">
               {t.heroTitle}
               <span className="relative inline-block px-2">
                 <span className="relative z-10 text-orange-500 dark:text-orange-400">
@@ -576,7 +576,7 @@ export default function LandingPage() {
           <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-neutral-700 to-transparent" />
           <div className="mx-auto max-w-5xl px-5 relative z-10">
             <FadeIn direction="up" className="text-center max-w-3xl mx-auto space-y-4 mb-16">
-              <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
                 {t.problemTitle}
               </h2>
               <p className="text-base text-neutral-400 font-medium">
@@ -612,7 +612,7 @@ export default function LandingPage() {
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 hover:bg-orange-100 hover:text-orange-700 border-none px-3 py-1 text-xs font-bold uppercase tracking-widest">
                 {t.featuresBadge}
               </Badge>
-              <h2 className="text-3xl sm:text-5xl font-black text-neutral-900 dark:text-white tracking-tight">
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-neutral-900 dark:text-white tracking-tight">
                 {t.featuresTitle}
               </h2>
               <p className="text-base text-neutral-500 dark:text-neutral-400 font-medium leading-relaxed">
@@ -657,7 +657,7 @@ export default function LandingPage() {
         <section id="how-it-works" className="py-20 lg:py-28 bg-slate-50 dark:bg-neutral-950 border-t border-neutral-100 dark:border-neutral-900 relative">
           <div className="mx-auto max-w-5xl px-5">
             <FadeIn direction="up" className="text-center max-w-2xl mx-auto space-y-5 mb-20">
-              <h2 className="text-3xl sm:text-4xl font-black text-neutral-900 dark:text-white tracking-tight">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-neutral-900 dark:text-white tracking-tight">
                 {t.howItWorksTitle}
               </h2>
               <p className="text-base text-neutral-500 dark:text-neutral-400">
@@ -701,7 +701,7 @@ export default function LandingPage() {
 
           <div className="mx-auto max-w-6xl px-5">
             <FadeIn direction="up" className="text-center max-w-3xl mx-auto space-y-6 mb-16">
-              <h2 className="text-3xl sm:text-5xl font-black text-neutral-900 dark:text-white tracking-tight">
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-neutral-900 dark:text-white tracking-tight">
                 {t.pricingTitle}
               </h2>
               <p className="text-base sm:text-lg text-neutral-500 dark:text-neutral-400">
@@ -842,7 +842,7 @@ export default function LandingPage() {
         <section id="testimonials" className="py-20 lg:py-28 bg-slate-50 dark:bg-neutral-950 border-t border-neutral-100 dark:border-neutral-900">
           <div className="mx-auto max-w-6xl px-5">
             <FadeIn direction="up" className="text-center max-w-2xl mx-auto space-y-5 mb-16">
-              <h2 className="text-3xl sm:text-4xl font-black text-neutral-900 dark:text-white tracking-tight">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-neutral-900 dark:text-white tracking-tight">
                 {t.testiTitle}
               </h2>
               <p className="text-base text-neutral-500 dark:text-neutral-400">
@@ -897,7 +897,7 @@ export default function LandingPage() {
         <section id="faq" className="py-20 lg:py-28 bg-white dark:bg-neutral-900/20 border-t border-neutral-100 dark:border-neutral-900">
           <div className="mx-auto max-w-4xl px-5">
             <FadeIn direction="up" className="text-center max-w-2xl mx-auto space-y-4 mb-16">
-              <h2 className="text-3xl sm:text-4xl font-black text-neutral-900 dark:text-white tracking-tight">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-neutral-900 dark:text-white tracking-tight">
                 {t.faqTitle}
               </h2>
               <p className="text-base text-neutral-500 dark:text-neutral-400">
@@ -959,7 +959,7 @@ export default function LandingPage() {
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[800px] bg-orange-500/20 rounded-full blur-[120px] -z-10" />
 
           <FadeIn direction="up" className="mx-auto max-w-3xl space-y-8 relative z-10">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">
+            <h2 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight">
               {t.ctaTitle}
             </h2>
             <p className="text-lg md:text-xl text-neutral-400 font-medium max-w-2xl mx-auto">

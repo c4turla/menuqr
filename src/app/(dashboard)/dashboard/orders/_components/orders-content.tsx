@@ -407,7 +407,7 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
         </div>
 
         {isPremium && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* View mode toggle */}
             <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1">
               <button
@@ -505,7 +505,7 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
         <div className="space-y-6">
           {/* Restaurant Selector & Status Filter Bar */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider shrink-0">
                 {t.selectOutlet}
               </span>

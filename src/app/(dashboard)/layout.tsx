@@ -1,5 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
-import { DashboardSidebar } from "@/components/DashboardSidebar";
+import { DashboardLayoutShell } from "@/components/DashboardLayoutShell";
 import { getSession } from "@/server/services/auth-service";
 import { getRestaurantsByOwner } from "@/server/queries/restaurant-queries";
 
@@ -25,13 +25,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 transition-colors duration-300">
-      <DashboardSidebar planTier={planTier} />
-      <main className="ml-[220px] min-h-screen px-8 py-6">
-        {children}
-      </main>
+    <DashboardLayoutShell planTier={planTier}>
+      {children}
       <Toaster />
-    </div>
+    </DashboardLayoutShell>
   );
 }
 

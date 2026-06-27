@@ -399,7 +399,7 @@ export function MenuContent({ restaurants }: MenuContentProps) {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
             {t.pageTitle}
@@ -411,7 +411,7 @@ export function MenuContent({ restaurants }: MenuContentProps) {
         {selectedRestaurantId && (
           <Button
             onClick={openCreate}
-            className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm shadow-md shadow-orange-500/20"
+            className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm shadow-md shadow-orange-500/20"
           >
             <Plus className="h-4 w-4 mr-1.5" />
             {t.addItem}
@@ -420,8 +420,8 @@ export function MenuContent({ restaurants }: MenuContentProps) {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="w-72">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
+        <div className="w-full sm:w-72">
           <Select value={selectedRestaurantId} onValueChange={handleRestaurantChange}>
             <SelectTrigger className="rounded-xl bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800">
               <SelectValue placeholder={t.selectRestaurant} />
@@ -436,7 +436,7 @@ export function MenuContent({ restaurants }: MenuContentProps) {
           </Select>
         </div>
         {selectedRestaurantId && (
-          <div className="w-52">
+          <div className="w-full sm:w-52">
             <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
               <SelectTrigger className="rounded-xl bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800">
                 <SelectValue placeholder={t.allCategories} />
