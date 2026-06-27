@@ -68,9 +68,9 @@ interface OrdersContentProps {
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 /**
- * Untuk filter ke DB: konversi "00:00 WIB" menjadi nilai raw yang setara.
- * Karena DB menyimpan WIB as-is (tidak ada tz-awareness), kita TIDAK perlu
- * menggeser — cukup bangun Date dengan nilai WIB langsung lalu pakai ISO.
+ * Untuk filter ke DB: konversi tanggal WIB ke batas waktu UTC sesungguhnya.
+ * Karena DB menggunakan timestamp with time zone (UTC), kita harus
+ * menggeser batas WIB kembali ke UTC (dikurangi 7 jam).
  */
 function getTodayRange(): { dateFrom: string; dateTo: string } {
   // Ambil tanggal hari ini di WIB dengan menggeser UTC+7
@@ -78,17 +78,18 @@ function getTodayRange(): { dateFrom: string; dateTo: string } {
   const y = wibNow.getUTCFullYear();
   const mo = wibNow.getUTCMonth();
   const d = wibNow.getUTCDate();
-  // Bangun batas hari dalam "waktu WIB as UTC" — cocok dengan nilai raw di DB
-  const start = new Date(Date.UTC(y, mo, d, 0, 0, 0, 0));
-  const end   = new Date(Date.UTC(y, mo, d, 23, 59, 59, 999));
+  
+  // Batas WIB 00:00:00 dan 23:59:59 diubah ke UTC (dikurangi 7 jam)
+  const start = new Date(Date.UTC(y, mo, d, 0, 0, 0, 0) - WIB_OFFSET_MS);
+  const end   = new Date(Date.UTC(y, mo, d, 23, 59, 59, 999) - WIB_OFFSET_MS);
   return { dateFrom: start.toISOString(), dateTo: end.toISOString() };
 }
 
 // Helper: range untuk tanggal tertentu (YYYY-MM-DD) — WIB-aware
 function getDateRange(dateStr: string): { dateFrom: string; dateTo: string } {
   const [y, m, d] = dateStr.split("-").map(Number);
-  const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
-  const end   = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+  const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0) - WIB_OFFSET_MS);
+  const end   = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999) - WIB_OFFSET_MS);
   return { dateFrom: start.toISOString(), dateTo: end.toISOString() };
 }
 
