@@ -54,6 +54,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Buat direktori uploads dan beri permission
 RUN mkdir -p ./public/uploads && chown -R nextjs:nodejs ./public/uploads
 RUN chown nextjs:nodejs ./start.sh
+RUN chown -R nextjs:nodejs /app
 
 USER nextjs
 
