@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Lock, ArrowRight, AlertCircle, Globe } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 const authTranslations = {
   id: {
@@ -67,15 +68,13 @@ function ResetPasswordForm() {
     setError("");
 
     try {
-      const res = await fetch(`/api/auth/reset-password/${token}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword: password }),
+      const { error } = await authClient.resetPassword({
+        newPassword: password,
+        token,
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.message || t.invalidError);
+      if (error) {
+        setError(error.message || t.invalidError);
         setLoading(false);
         return;
       }

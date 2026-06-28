@@ -47,7 +47,7 @@ import {
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { useTheme } from "@/components/ThemeProvider";
-import { updateUserProfile, getLatestVerificationCode, verifyUserEmailDirectly } from "@/server/actions/user-actions";
+import { updateUserProfile } from "@/server/actions/user-actions";
 
 interface SettingsContentProps {
   user: {
@@ -89,22 +89,44 @@ interface SettingsContentProps {
 
 const countryData: Record<string, string[]> = {
   Indonesia: [
+    "Aceh",
+    "Bali",
+    "Banten",
+    "Bengkulu",
+    "DI Yogyakarta",
     "DKI Jakarta",
+    "Gorontalo",
+    "Jambi",
     "Jawa Barat",
     "Jawa Tengah",
     "Jawa Timur",
-    "Bali",
-    "Banten",
-    "DI Yogyakarta",
-    "Sumatera Utara",
-    "Sumatera Selatan",
-    "Sumatera Barat",
-    "Riau",
-    "Kepulauan Riau",
-    "Sulawesi Selatan",
-    "Sulawesi Utara",
+    "Kalimantan Barat",
+    "Kalimantan Selatan",
+    "Kalimantan Tengah",
     "Kalimantan Timur",
-    "Kalimantan Barat"
+    "Kalimantan Utara",
+    "Kepulauan Bangka Belitung",
+    "Kepulauan Riau",
+    "Lampung",
+    "Maluku",
+    "Maluku Utara",
+    "Nusa Tenggara Barat",
+    "Nusa Tenggara Timur",
+    "Papua",
+    "Papua Barat",
+    "Papua Barat Daya",
+    "Papua Pegunungan",
+    "Papua Selatan",
+    "Papua Tengah",
+    "Riau",
+    "Sulawesi Barat",
+    "Sulawesi Selatan",
+    "Sulawesi Tengah",
+    "Sulawesi Tenggara",
+    "Sulawesi Utara",
+    "Sumatera Barat",
+    "Sumatera Selatan",
+    "Sumatera Utara"
   ],
   Malaysia: [
     "Selangor",
@@ -507,9 +529,6 @@ export function SettingsContent({ user, restaurants }: SettingsContentProps) {
   const [emailVerified, setEmailVerified] = useState(user.emailVerified);
   const [sendingVerification, setSendingVerification] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
-  const [developerCode, setDeveloperCode] = useState("");
-  const [inputCode, setInputCode] = useState("");
-  const [verifyingEmail, setVerifyingEmail] = useState(false);
 
   // Theme/Language mounting
   const { theme, setTheme } = useTheme();
@@ -730,7 +749,7 @@ export function SettingsContent({ user, restaurants }: SettingsContentProps) {
     }
   }
 
-  // Trigger better-auth verification email creation and get code from DB
+  // Trigger better-auth verification email creation
   async function handleSendVerification() {
     setSendingVerification(true);
     try {
@@ -746,45 +765,10 @@ export function SettingsContent({ user, restaurants }: SettingsContentProps) {
 
       toast.success(lang === "id" ? "Email verifikasi terkirim!" : "Verification email sent!");
       setVerificationSent(true);
-
-      // Fetch the latest generated token/code from the database
-      // Delay 1.5 seconds to ensure Drizzle/Better Auth completes write operation
-      setTimeout(async () => {
-        try {
-          const res = await getLatestVerificationCode(user.email);
-          if (res.success && res.code) {
-            setDeveloperCode(res.code);
-          }
-        } catch (e) {
-          console.error("Failed to fetch dev code", e);
-        }
-      }, 1500);
     } catch {
       toast.error(t.somethingWrong);
     } finally {
       setSendingVerification(false);
-    }
-  }
-
-  // Verify code directly in the database
-  async function handleVerifyCode() {
-    if (!inputCode.trim()) return;
-    setVerifyingEmail(true);
-    try {
-      const res = await verifyUserEmailDirectly(inputCode.trim());
-      if (res.success) {
-        toast.success(lang === "id" ? "Email Anda berhasil diverifikasi!" : "Email verified successfully!");
-        setEmailVerified(true);
-        setVerificationSent(false);
-        setDeveloperCode("");
-        setInputCode("");
-      } else {
-        toast.error(res.error || (lang === "id" ? "Kode verifikasi tidak valid" : "Invalid verification code"));
-      }
-    } catch {
-      toast.error(t.somethingWrong);
-    } finally {
-      setVerifyingEmail(false);
     }
   }
 
@@ -1187,37 +1171,22 @@ export function SettingsContent({ user, restaurants }: SettingsContentProps) {
                       )}
                     </Button>
                   ) : (
-                    <div className="space-y-3.5 pt-1 border-t border-amber-500/10">
-                      {developerCode && (
-                        <div className="bg-orange-500/5 text-orange-600 dark:text-orange-400 border border-orange-500/10 p-4 rounded-xl text-xs font-bold space-y-2">
-                          <p className="uppercase tracking-wider text-[10px] text-neutral-400">{lang === "id" ? "TRIAL MODE (SALIN KODE DI BAWAH):" : "TRIAL MODE (COPY CODE BELOW):"}</p>
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-sm tracking-widest bg-white dark:bg-neutral-900 border border-orange-500/20 px-4 py-2 rounded-xl inline-block select-all cursor-pointer font-mono">
-                              {developerCode}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div className="flex gap-2 max-w-sm">
-                        <Input
-                          value={inputCode}
-                          onChange={(e) => setInputCode(e.target.value)}
-                          placeholder={lang === "id" ? "Masukkan Kode Verifikasi" : "Enter Verification Code"}
-                          className="rounded-xl h-10 text-xs border-neutral-200 dark:border-neutral-800"
-                        />
-                        <Button
-                          onClick={handleVerifyCode}
-                          disabled={verifyingEmail || !inputCode.trim()}
-                          className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold h-10 px-5 border-0 shrink-0 shadow-md shadow-orange-500/15"
-                        >
-                          {verifyingEmail ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            lang === "id" ? "Verifikasi" : "Verify"
-                          )}
-                        </Button>
-                      </div>
+                    <div className="pt-2 border-t border-amber-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <p className="text-xs font-bold text-neutral-600 dark:text-neutral-300">
+                        {lang === "id" 
+                          ? "Email verifikasi telah dikirim. Silakan periksa inbox/spam email Anda dan klik link di dalamnya." 
+                          : "Verification email sent. Please check your inbox/spam folder and click the link inside."}
+                      </p>
+                      <Button
+                        onClick={handleSendVerification}
+                        disabled={sendingVerification}
+                        className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 dark:bg-neutral-850 dark:hover:bg-neutral-800 dark:text-neutral-200 rounded-xl text-xs font-bold h-9 px-4 border-0 transition-all"
+                      >
+                        {sendingVerification ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                        ) : null}
+                        {lang === "id" ? "Kirim Ulang" : "Resend Email"}
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1432,37 +1401,22 @@ export function SettingsContent({ user, restaurants }: SettingsContentProps) {
                       )}
                     </Button>
                   ) : (
-                    <div className="space-y-3.5 pt-1 border-t border-amber-500/10">
-                      {developerCode && (
-                        <div className="bg-orange-500/5 text-orange-600 dark:text-orange-400 border border-orange-500/10 p-4 rounded-xl text-xs font-bold space-y-2">
-                          <p className="uppercase tracking-wider text-[10px] text-neutral-400">{lang === "id" ? "TRIAL MODE (SALIN KODE DI BAWAH):" : "TRIAL MODE (COPY CODE BELOW):"}</p>
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-sm tracking-widest bg-white dark:bg-neutral-900 border border-orange-500/20 px-4 py-2 rounded-xl inline-block select-all cursor-pointer font-mono">
-                              {developerCode}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div className="flex gap-2 max-w-sm">
-                        <Input
-                          value={inputCode}
-                          onChange={(e) => setInputCode(e.target.value)}
-                          placeholder={lang === "id" ? "Masukkan Kode Verifikasi" : "Enter Verification Code"}
-                          className="rounded-xl h-10 text-xs border-neutral-200 dark:border-neutral-800"
-                        />
-                        <Button
-                          onClick={handleVerifyCode}
-                          disabled={verifyingEmail || !inputCode.trim()}
-                          className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold h-10 px-5 border-0 shrink-0 shadow-md shadow-orange-500/15"
-                        >
-                          {verifyingEmail ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            lang === "id" ? "Verifikasi" : "Verify"
-                          )}
-                        </Button>
-                      </div>
+                    <div className="pt-2 border-t border-amber-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <p className="text-xs font-bold text-neutral-600 dark:text-neutral-300">
+                        {lang === "id" 
+                          ? "Email verifikasi telah dikirim. Silakan periksa inbox/spam email Anda dan klik link di dalamnya." 
+                          : "Verification email sent. Please check your inbox/spam folder and click the link inside."}
+                      </p>
+                      <Button
+                        onClick={handleSendVerification}
+                        disabled={sendingVerification}
+                        className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 dark:bg-neutral-850 dark:hover:bg-neutral-800 dark:text-neutral-200 rounded-xl text-xs font-bold h-9 px-4 border-0 transition-all"
+                      >
+                        {sendingVerification ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                        ) : null}
+                        {lang === "id" ? "Kirim Ulang" : "Resend Email"}
+                      </Button>
                     </div>
                   )}
                 </div>

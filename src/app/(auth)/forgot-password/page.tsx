@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, ArrowRight, AlertCircle, ArrowLeft, Globe } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 const authTranslations = {
   id: {
@@ -61,18 +62,13 @@ export default function ForgotPasswordPage() {
     setError("");
 
     try {
-      const res = await fetch("/api/auth/request-password-reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          redirectTo: `${window.location.origin}/reset-password`,
-        }),
+      const { error } = await authClient.requestPasswordReset({
+        email,
+        redirectTo: `${window.location.origin}/reset-password`,
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.message || t.invalidError);
+      if (error) {
+        setError(error.message || t.invalidError);
         setLoading(false);
         return;
       }
