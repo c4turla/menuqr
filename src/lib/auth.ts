@@ -96,7 +96,12 @@ export const auth = betterAuth({
       }
     },
   },
-  socialProviders: {},
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+    },
+  },
   session: {
     expiresIn: 30 * 24 * 60 * 60,
     updateAge: 24 * 60 * 60,
