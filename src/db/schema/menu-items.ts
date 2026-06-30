@@ -6,9 +6,24 @@ import {
   integer,
   boolean,
   decimal,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { restaurants } from "./restaurants";
 import { categories } from "./categories";
+
+export interface ModifierOption {
+  name: string;
+  price: number;
+}
+
+export interface ModifierGroup {
+  id: string;
+  name: string;
+  required: boolean;
+  minSelection: number;
+  maxSelection: number;
+  options: ModifierOption[];
+}
 
 export const menuItems = pgTable("menu_items", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -24,6 +39,8 @@ export const menuItems = pgTable("menu_items", {
   imageUrl: text("image_url"),
   available: boolean("available").notNull().default(true),
   featured: boolean("featured").notNull().default(false),
+  modifiers: jsonb("modifiers").$type<ModifierGroup[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+

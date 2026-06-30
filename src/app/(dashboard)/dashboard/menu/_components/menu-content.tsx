@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import type { ModifierGroup, ModifierOption } from "@/db/schema/menu-items";
 import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
@@ -65,6 +66,7 @@ type MenuItem = {
   available: boolean;
   featured: boolean;
   categoryName: string | null;
+  modifiers?: ModifierGroup[] | null;
 };
 
 interface MenuContentProps {
@@ -120,6 +122,17 @@ const menuTranslations = {
     toastToggleAvailabilityError: "Gagal mengubah ketersediaan",
     toastToggleFeaturedError: "Gagal mengubah status unggulan",
     errLimitMenu: "Batas paket Gratis tercapai: Anda hanya dapat membuat hingga 5 menu makanan. Harap tingkatkan paket berlangganan Anda.",
+    modifiersTitle: "Variasi & Kustomisasi",
+    modifiersDesc: "Tambahkan pilihan kustomisasi untuk hidangan ini (misal: level pedas, topping, ukuran).",
+    addModifierGroup: "Tambah Grup Variasi",
+    groupNameLabel: "Nama Grup Variasi (misal: Level Pedas)",
+    optionNameLabel: "Nama Opsi (misal: Level 1)",
+    optionPriceLabel: "+ Harga (Rp)",
+    addOption: "Tambah Opsi",
+    requiredLabel: "Wajib diisi pelanggan",
+    minSelect: "Min Pilihan",
+    maxSelect: "Max Pilihan",
+    optionsList: "Daftar Opsi",
   },
   en: {
     pageTitle: "Menu Items",
@@ -169,6 +182,17 @@ const menuTranslations = {
     toastToggleAvailabilityError: "Failed to toggle availability",
     toastToggleFeaturedError: "Failed to toggle featured",
     errLimitMenu: "Free plan limit reached: You can only create up to 5 menu items. Please upgrade your plan.",
+    modifiersTitle: "Modifiers & Customizations",
+    modifiersDesc: "Add customization choices for this item (e.g., spiciness level, toppings, size).",
+    addModifierGroup: "Add Variation Group",
+    groupNameLabel: "Group Name (e.g., Spicy Level)",
+    optionNameLabel: "Option Name (e.g., Level 1)",
+    optionPriceLabel: "+ Price (Rp)",
+    addOption: "Add Option",
+    requiredLabel: "Required selection",
+    minSelect: "Min Selection",
+    maxSelect: "Max Selection",
+    optionsList: "Options List",
   }
 };
 
@@ -193,6 +217,7 @@ export function MenuContent({ restaurants }: MenuContentProps) {
     imageUrl: "",
     available: true,
     featured: false,
+    modifiers: [] as ModifierGroup[],
   });
 
   const [uploading, setUploading] = useState(false);
@@ -294,6 +319,7 @@ export function MenuContent({ restaurants }: MenuContentProps) {
       imageUrl: "",
       available: true,
       featured: false,
+      modifiers: [],
     });
     setDialogOpen(true);
   }
@@ -308,6 +334,7 @@ export function MenuContent({ restaurants }: MenuContentProps) {
       imageUrl: item.imageUrl ?? "",
       available: item.available,
       featured: item.featured,
+      modifiers: item.modifiers ? JSON.parse(JSON.stringify(item.modifiers)) : [],
     });
     setDialogOpen(true);
   }
@@ -315,6 +342,74 @@ export function MenuContent({ restaurants }: MenuContentProps) {
   function openDelete(item: MenuItem) {
     setDeleting(item);
     setDeleteDialogOpen(true);
+  }
+
+  function addModifierGroup() {
+    setForm((prev) => ({
+      ...prev,
+      modifiers: [
+        ...(prev.modifiers || []),
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          name: "",
+          required: false,
+          minSelection: 0,
+          maxSelection: 1,
+          options: [{ name: "", price: 0 }],
+        },
+      ],
+    }));
+  }
+
+  function removeModifierGroup(idx: number) {
+    setForm((prev) => ({
+      ...prev,
+      modifiers: prev.modifiers.filter((_, i) => i !== idx),
+    }));
+  }
+
+  function updateGroupField(idx: number, field: keyof ModifierGroup, value: any) {
+    setForm((prev) => ({
+      ...prev,
+      modifiers: prev.modifiers.map((g, i) => (i === idx ? { ...g, [field]: value } : g)),
+    }));
+  }
+
+  function addOptionToGroup(groupIdx: number) {
+    setForm((prev) => ({
+      ...prev,
+      modifiers: prev.modifiers.map((g, i) =>
+        i === groupIdx ? { ...g, options: [...g.options, { name: "", price: 0 }] } : g
+      ),
+    }));
+  }
+
+  function removeOptionFromGroup(groupIdx: number, optIdx: number) {
+    setForm((prev) => ({
+      ...prev,
+      modifiers: prev.modifiers.map((g, i) =>
+        i === groupIdx
+          ? {
+              ...g,
+              options: g.options.filter((_, j) => j !== optIdx),
+            }
+          : g
+      ),
+    }));
+  }
+
+  function updateOptionField(groupIdx: number, optIdx: number, field: keyof ModifierOption, value: any) {
+    setForm((prev) => ({
+      ...prev,
+      modifiers: prev.modifiers.map((g, i) =>
+        i === groupIdx
+          ? {
+              ...g,
+              options: g.options.map((o, j) => (j === optIdx ? { ...o, [field]: value } : o)),
+            }
+          : g
+      ),
+    }));
   }
 
   async function handleSave() {
@@ -732,6 +827,151 @@ export function MenuContent({ restaurants }: MenuContentProps) {
                 checked={form.featured}
                 onCheckedChange={(v) => setForm({ ...form, featured: v })}
               />
+            </div>
+
+            {/* Modifiers Section */}
+            <div className="border-t border-neutral-100 dark:border-neutral-850 pt-4 mt-2">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h4 className="text-sm font-bold text-neutral-900 dark:text-white">
+                    {t.modifiersTitle}
+                  </h4>
+                  <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
+                    {t.modifiersDesc}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addModifierGroup}
+                  className="rounded-xl text-xs h-8 border-orange-500/20 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  {t.addModifierGroup}
+                </Button>
+              </div>
+
+              <div className="space-y-4 mt-3">
+                {form.modifiers?.map((group, groupIdx) => (
+                  <div
+                    key={group.id || groupIdx}
+                    className="p-4 rounded-2xl bg-neutral-50/50 dark:bg-neutral-900/50 border border-neutral-100 dark:border-neutral-800 space-y-3 relative group/item"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => removeModifierGroup(groupIdx)}
+                      className="absolute top-3 right-3 p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-8">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase">
+                          {t.groupNameLabel}
+                        </Label>
+                        <Input
+                          value={group.name}
+                          onChange={(e) => updateGroupField(groupIdx, "name", e.target.value)}
+                          placeholder="Contoh: Level Pedas, Topping"
+                          className="rounded-xl text-xs h-9 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800"
+                        />
+                      </div>
+                      <div className="flex items-center gap-4 pt-4">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={group.required}
+                            onCheckedChange={(checked) => {
+                              updateGroupField(groupIdx, "required", checked);
+                              if (checked) {
+                                updateGroupField(groupIdx, "minSelection", 1);
+                              } else {
+                                updateGroupField(groupIdx, "minSelection", 0);
+                              }
+                            }}
+                            className="scale-75"
+                          />
+                          <span className="text-xs text-neutral-605 dark:text-neutral-350">{t.requiredLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 max-w-[240px]">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase">
+                          {t.minSelect}
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={group.minSelection}
+                          onChange={(e) => updateGroupField(groupIdx, "minSelection", parseInt(e.target.value) || 0)}
+                          className="rounded-xl text-xs h-8 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase">
+                          {t.maxSelect}
+                        </Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={group.maxSelection}
+                          onChange={(e) => updateGroupField(groupIdx, "maxSelection", parseInt(e.target.value) || 1)}
+                          className="rounded-xl text-xs h-8 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Options list inside group */}
+                    <div className="space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                      <Label className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase">
+                        {t.optionsList}
+                      </Label>
+                      <div className="space-y-1.5">
+                        {group.options.map((option, optIdx) => (
+                          <div key={optIdx} className="flex items-center gap-2">
+                            <Input
+                              value={option.name}
+                              onChange={(e) => updateOptionField(groupIdx, optIdx, "name", e.target.value)}
+                              placeholder={t.optionNameLabel}
+                              className="rounded-xl text-xs h-8 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 flex-1"
+                            />
+                            <div className="w-28 relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-neutral-400 font-semibold">Rp</span>
+                              <Input
+                                type="number"
+                                value={option.price || ""}
+                                onChange={(e) => updateOptionField(groupIdx, optIdx, "price", parseFloat(e.target.value) || 0)}
+                                placeholder="0"
+                                className="rounded-xl text-xs h-8 bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 pl-7"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeOptionFromGroup(groupIdx, optIdx)}
+                              className="p-1 rounded text-neutral-400 hover:text-red-500 transition-colors"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => addOptionToGroup(groupIdx)}
+                        className="rounded-xl text-xs h-7 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 px-2 mt-1"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        {t.addOption}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
           <DialogFooter>

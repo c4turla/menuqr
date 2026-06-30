@@ -48,6 +48,7 @@ type MenuItem = {
   available: boolean;
   featured: boolean;
   categoryName: string | null;
+  modifiers?: any[] | null;
 };
 
 interface PublicMenuContentProps {
@@ -56,11 +57,26 @@ interface PublicMenuContentProps {
 }
 
 export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps) {
+  type SelectedModifiers = {
+    [groupId: string]: {
+      groupName: string;
+      options: {
+        name: string;
+        price: number;
+      }[];
+    };
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [cart, setCart] = useState<Record<string, number>>({});
+  const [cart, setCart] = useState<Record<string, {
+    itemId: string;
+    quantity: number;
+    selectedModifiers: SelectedModifiers;
+  }>>({});
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [tableNumber, setTableNumber] = useState<string | null>(null);
+  const [isTableLocked, setIsTableLocked] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
@@ -71,12 +87,23 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
   const [orderType, setOrderType] = useState<"dine_in" | "takeaway">("dine_in");
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
 
+  const [activeModifiers, setActiveModifiers] = useState<SelectedModifiers>({});
+  const [itemQuantity, setItemQuantity] = useState(1);
+
+  useEffect(() => {
+    if (selectedMenuItem) {
+      setActiveModifiers({});
+      setItemQuantity(1);
+    }
+  }, [selectedMenuItem]);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const table = params.get("table") || params.get("t");
       if (table) {
         setTableNumber(table);
+        setIsTableLocked(true);
       }
 
       const trackId = params.get("track");
@@ -158,16 +185,41 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
       return;
     }
 
+    if (orderType === "dine_in" && !tableNumber?.trim()) {
+      toast.error("Silakan masukkan nomor meja Anda");
+      return;
+    }
+
     setIsSubmittingOrder(true);
     const toastId = toast.loading("Mengirimkan pesanan Anda...");
     try {
-      const orderItems = Object.entries(cart).map(([itemId, qty]) => {
-        const item = items.find((i) => i.id === itemId);
+      const orderItems = Object.entries(cart).map(([cartKey, cartItem]) => {
+        const item = items.find((i) => i.id === cartItem.itemId);
+        
+        // Format selectedModifiers array for orders DB
+        const selectedModifiersList = Object.values(cartItem.selectedModifiers).map((g) => ({
+          groupName: g.groupName,
+          options: g.options.map((o) => ({
+            name: o.name,
+            price: o.price,
+          })),
+        }));
+
+        // Calculate item price with modifiers
+        let modifierExtra = 0;
+        selectedModifiersList.forEach((group) => {
+          group.options.forEach((opt) => {
+            modifierExtra += opt.price;
+          });
+        });
+        const finalPrice = String(Number(item?.price || 0) + modifierExtra);
+
         return {
-          menuItemId: itemId,
+          menuItemId: cartItem.itemId,
           name: item?.name || "Item",
-          price: item?.price || "0",
-          quantity: qty,
+          price: finalPrice,
+          quantity: cartItem.quantity,
+          selectedModifiers: selectedModifiersList,
         };
       });
 
@@ -245,31 +297,120 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
     return groups;
   }, [regularItems]);
 
-  // Cart operations
-  const updateQuantity = (itemId: string, delta: number) => {
+  const hasModifiers = (item: MenuItem) => {
+    return !!(item.modifiers && item.modifiers.length > 0);
+  };
+
+  const updateQuantitySimple = (itemId: string, delta: number) => {
+    const cartKey = `${itemId}_${JSON.stringify({})}`;
     setCart((prev) => {
-      const current = prev[itemId] ?? 0;
-      const next = current + delta;
-      if (next <= 0) {
+      const existing = prev[cartKey];
+      if (!existing) {
+        if (delta <= 0) return prev;
+        return {
+          ...prev,
+          [cartKey]: {
+            itemId,
+            quantity: delta,
+            selectedModifiers: {},
+          },
+        };
+      }
+      const newQty = existing.quantity + delta;
+      if (newQty <= 0) {
         const copy = { ...prev };
-        delete copy[itemId];
+        delete copy[cartKey];
         return copy;
       }
-      return { ...prev, [itemId]: next };
+      return {
+        ...prev,
+        [cartKey]: {
+          ...existing,
+          quantity: newQty,
+        },
+      };
     });
   };
 
+  const getSimpleItemQty = (itemId: string) => {
+    return cart[`${itemId}_${JSON.stringify({})}`]?.quantity || 0;
+  };
+
   const totalItems = useMemo(() => {
-    return Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+    return Object.values(cart).reduce((sum, item) => sum + item.quantity, 0);
   }, [cart]);
 
   const totalPrice = useMemo(() => {
-    return Object.entries(cart).reduce((sum, [itemId, qty]) => {
-      const item = items.find((i) => i.id === itemId);
+    return Object.values(cart).reduce((sum, cartItem) => {
+      const item = items.find((i) => i.id === cartItem.itemId);
       if (!item) return sum;
-      return sum + Number(item.price) * qty;
+      
+      let modifierExtra = 0;
+      Object.values(cartItem.selectedModifiers).forEach((group) => {
+        group.options.forEach((opt) => {
+          modifierExtra += opt.price;
+        });
+      });
+
+      return sum + (Number(item.price) + modifierExtra) * cartItem.quantity;
     }, 0);
   }, [cart, items]);
+
+  const isModifierSelectionValid = useMemo(() => {
+    if (!selectedMenuItem || !selectedMenuItem.modifiers) return true;
+    for (const group of selectedMenuItem.modifiers) {
+      if (group.required) {
+        const selection = activeModifiers[group.id];
+        const minSel = group.minSelection || 1;
+        if (!selection || selection.options.length < minSel) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }, [selectedMenuItem, activeModifiers]);
+
+  const modalItemTotalPrice = useMemo(() => {
+    if (!selectedMenuItem) return 0;
+    let basePrice = Number(selectedMenuItem.price);
+    let modifierExtra = 0;
+    Object.values(activeModifiers).forEach((group) => {
+      group.options.forEach((opt) => {
+        modifierExtra += opt.price;
+      });
+    });
+    return basePrice + modifierExtra;
+  }, [selectedMenuItem, activeModifiers]);
+
+  const handleAddToCartFromModal = () => {
+    if (!selectedMenuItem) return;
+    
+    const cartKey = `${selectedMenuItem.id}_${JSON.stringify(activeModifiers)}`;
+    
+    setCart((prev) => {
+      const existing = prev[cartKey];
+      if (existing) {
+        return {
+          ...prev,
+          [cartKey]: {
+            ...existing,
+            quantity: existing.quantity + itemQuantity,
+          },
+        };
+      }
+      return {
+        ...prev,
+        [cartKey]: {
+          itemId: selectedMenuItem.id,
+          quantity: itemQuantity,
+          selectedModifiers: activeModifiers,
+        },
+      };
+    });
+
+    setSelectedMenuItem(null);
+    toast.success(`${selectedMenuItem.name} ditambahkan ke keranjang`);
+  };
 
   const formatPrice = (price: number) => {
     return `Rp ${price.toLocaleString("id-ID")}`;
@@ -279,16 +420,40 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
   const handleSendOrder = async () => {
     if (!restaurant.whatsappNumber) return;
 
+    if (orderType === "dine_in" && !tableNumber?.trim()) {
+      toast.error("Silakan masukkan nomor meja Anda");
+      return;
+    }
+
     setIsSubmittingOrder(true);
     const toastId = toast.loading("Menyiapkan pesanan dan menghubungkan ke WhatsApp...");
 
-    const orderItems = Object.entries(cart).map(([itemId, qty]) => {
-      const item = items.find((i) => i.id === itemId);
+    const orderItems = Object.entries(cart).map(([cartKey, cartItem]) => {
+      const item = items.find((i) => i.id === cartItem.itemId);
+      
+      const selectedModifiersList = Object.values(cartItem.selectedModifiers).map((g) => ({
+        groupName: g.groupName,
+        options: g.options.map((o) => ({
+          name: o.name,
+          price: o.price,
+        })),
+      }));
+
+      // Calculate final price
+      let modifierExtra = 0;
+      selectedModifiersList.forEach((group) => {
+        group.options.forEach((opt) => {
+          modifierExtra += opt.price;
+        });
+      });
+      const finalPrice = String(Number(item?.price || 0) + modifierExtra);
+
       return {
-        menuItemId: itemId,
+        menuItemId: cartItem.itemId,
         name: item?.name || "Item",
-        price: item?.price || "0",
-        quantity: qty,
+        price: finalPrice,
+        quantity: cartItem.quantity,
+        selectedModifiers: selectedModifiersList,
       };
     });
 
@@ -296,7 +461,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
 
     try {
       const res = await createOrderAction(restaurant.id, {
-        tableNumber: tableNumber || undefined,
+        tableNumber: orderType === "dine_in" ? (tableNumber || undefined) : undefined,
         customerName: customerName.trim() || "Pelanggan via WA",
         orderType: orderType,
         items: orderItems,
@@ -338,10 +503,26 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
     
     message += `\n`;
 
-    Object.entries(cart).forEach(([itemId, qty]) => {
-      const item = items.find((i) => i.id === itemId);
+    Object.entries(cart).forEach(([cartKey, cartItem]) => {
+      const item = items.find((i) => i.id === cartItem.itemId);
       if (item) {
-        message += `*${qty}x* ${item.name} (${formatPrice(Number(item.price) * qty)})\n`;
+        // Calculate item total price with modifiers
+        let modifierExtra = 0;
+        Object.values(cartItem.selectedModifiers).forEach((group) => {
+          group.options.forEach((opt) => {
+            modifierExtra += opt.price;
+          });
+        });
+        const unitPrice = Number(item.price) + modifierExtra;
+        const totalItemPrice = unitPrice * cartItem.quantity;
+
+        message += `*${cartItem.quantity}x* ${item.name} (${formatPrice(totalItemPrice)})\n`;
+        
+        // Add modifier list to WhatsApp text
+        Object.values(cartItem.selectedModifiers).forEach((g) => {
+          const optsText = g.options.map(opt => `${opt.name}${opt.price > 0 ? ` (+Rp ${opt.price.toLocaleString("id-ID")})` : ""}`).join(", ");
+          message += `   - _${g.groupName}: ${optsText}_\n`;
+        });
       }
     });
 
@@ -360,7 +541,6 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
     setIsSubmittingOrder(false);
 
     const cleanPhone = restaurant.whatsappNumber.replace(/\D/g, "");
-    // Ensure Indonesian phone starts with 62 instead of 0
     let formattedPhone = cleanPhone;
     if (formattedPhone.startsWith("0")) {
       formattedPhone = "62" + formattedPhone.slice(1);
@@ -422,7 +602,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                 <h1 className="text-base font-black text-neutral-900 dark:text-white leading-tight truncate">
                   {restaurant.name}
                 </h1>
-                {tableNumber && (restaurant.plan === "basic" || restaurant.plan === "pro") && (
+                {tableNumber && (
                   <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-[10px] font-black tracking-wide">
                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--theme-primary)] animate-pulse" />
                     Meja {tableNumber}
@@ -550,29 +730,39 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                         {formatPrice(Number(item.price))}
                       </span>
                       {item.available && (
-                        cart[item.id] ? (
-                          <div className="flex items-center gap-1.5 bg-neutral-50 dark:bg-neutral-800 rounded-full p-0.5 border border-neutral-150 dark:border-neutral-750">
-                            <button
-                              onClick={() => updateQuantity(item.id, -1)}
-                              className="flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm"
-                            >
-                              <Minus className="h-2.5 w-2.5" />
-                            </button>
-                            <span className="text-[10px] font-black w-4 text-center">{cart[item.id]}</span>
-                            <button
-                              onClick={() => updateQuantity(item.id, 1)}
-                              className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow-sm"
-                            >
-                              <Plus className="h-2.5 w-2.5" />
-                            </button>
-                          </div>
-                        ) : (
+                        hasModifiers(item) ? (
                           <button
-                            onClick={() => updateQuantity(item.id, 1)}
-                            className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white hover:scale-105 active:scale-95 transition-all shadow-sm"
+                            onClick={() => setSelectedMenuItem(item)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-[10px] font-black hover:bg-[var(--theme-primary)]/20 transition-all active:scale-95 shadow-sm"
                           >
                             <Plus className="h-3 w-3" />
+                            Sesuaikan
                           </button>
+                        ) : (
+                          getSimpleItemQty(item.id) > 0 ? (
+                            <div className="flex items-center gap-1.5 bg-neutral-50 dark:bg-neutral-800 rounded-full p-0.5 border border-neutral-150 dark:border-neutral-750">
+                              <button
+                                onClick={() => updateQuantitySimple(item.id, -1)}
+                                className="flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm"
+                              >
+                                <Minus className="h-2.5 w-2.5" />
+                              </button>
+                              <span className="text-[10px] font-black w-4 text-center">{getSimpleItemQty(item.id)}</span>
+                              <button
+                                onClick={() => updateQuantitySimple(item.id, 1)}
+                                className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow-sm"
+                              >
+                                <Plus className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => updateQuantitySimple(item.id, 1)}
+                              className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white hover:scale-105 active:scale-95 transition-all shadow-sm"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </button>
+                          )
                         )
                       )}
                     </div>
@@ -621,30 +811,40 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                         </span>
                         
                         {item.available && (
-                          cart[item.id] ? (
-                            <div className="flex items-center gap-1.5 bg-neutral-50 dark:bg-neutral-800 rounded-full p-0.5 border border-neutral-150 dark:border-neutral-750">
-                              <button
-                                onClick={() => updateQuantity(item.id, -1)}
-                                className="flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm"
-                              >
-                                <Minus className="h-2.5 w-2.5" />
-                              </button>
-                              <span className="text-[10px] font-black w-4 text-center">{cart[item.id]}</span>
-                              <button
-                                onClick={() => updateQuantity(item.id, 1)}
-                                className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow-sm"
-                              >
-                                <Plus className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          ) : (
+                          hasModifiers(item) ? (
                             <button
-                              onClick={() => updateQuantity(item.id, 1)}
+                              onClick={() => setSelectedMenuItem(item)}
                               className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-[10px] font-black hover:bg-[var(--theme-primary)]/20 transition-all active:scale-95 shadow-sm"
                             >
                               <Plus className="h-3 w-3" />
-                              Tambah
+                              Sesuaikan
                             </button>
+                          ) : (
+                            getSimpleItemQty(item.id) > 0 ? (
+                              <div className="flex items-center gap-1.5 bg-neutral-50 dark:bg-neutral-800 rounded-full p-0.5 border border-neutral-150 dark:border-neutral-750">
+                                <button
+                                  onClick={() => updateQuantitySimple(item.id, -1)}
+                                  className="flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm"
+                                >
+                                  <Minus className="h-2.5 w-2.5" />
+                                </button>
+                                <span className="text-[10px] font-black w-4 text-center">{getSimpleItemQty(item.id)}</span>
+                                <button
+                                  onClick={() => updateQuantitySimple(item.id, 1)}
+                                  className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow-sm"
+                                >
+                                  <Plus className="h-2.5 w-2.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => updateQuantitySimple(item.id, 1)}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] text-[10px] font-black hover:bg-[var(--theme-primary)]/20 transition-all active:scale-95 shadow-sm"
+                              >
+                                <Plus className="h-3 w-3" />
+                                Tambah
+                              </button>
+                            )
                           )
                         )}
                       </div>
@@ -746,7 +946,7 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                   <ShoppingBag className="h-4 w-4 text-[var(--theme-primary)]" />
                   Detail Pesanan
                 </DialogTitle>
-                {tableNumber && (restaurant.plan === "basic" || restaurant.plan === "pro") && (
+                {tableNumber && (
                   <p className="text-[10px] font-bold text-neutral-400 text-left mt-0.5">
                     Ditempatkan di: <span className="text-[var(--theme-primary)] font-extrabold uppercase">Meja {tableNumber}</span>
                   </p>
@@ -754,125 +954,183 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
               </DialogHeader>
 
               <div className="divide-y divide-neutral-100 dark:divide-neutral-800 max-h-[40vh] overflow-y-auto pr-1">
-                {Object.entries(cart).map(([itemId, qty]) => {
-                  const item = items.find((i) => i.id === itemId);
+                {Object.entries(cart).map(([cartKey, cartItem]) => {
+                  const item = items.find((i) => i.id === cartItem.itemId);
                   if (!item) return null;
+                  
+                  // Calculate item price with modifiers
+                  let modifierExtra = 0;
+                  Object.values(cartItem.selectedModifiers).forEach((group) => {
+                    group.options.forEach((opt) => {
+                      modifierExtra += opt.price;
+                    });
+                  });
+                  const itemPrice = Number(item.price) + modifierExtra;
+
+                  const updateCartItemQty = (delta: number) => {
+                    setCart((prev) => {
+                      const existing = prev[cartKey];
+                      if (!existing) return prev;
+                      const nextQty = existing.quantity + delta;
+                      if (nextQty <= 0) {
+                        const copy = { ...prev };
+                        delete copy[cartKey];
+                        return copy;
+                      }
+                      return {
+                        ...prev,
+                        [cartKey]: {
+                          ...existing,
+                          quantity: nextQty,
+                        },
+                      };
+                    });
+                  };
+
                   return (
-                    <div key={itemId} className="flex items-center justify-between py-3">
-                      <div className="min-w-0 flex-1 pr-2">
-                        <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">{item.name}</p>
-                        <p className="text-[10px] text-[var(--theme-primary)] font-black mt-0.5">{formatPrice(Number(item.price))}</p>
+                    <div key={cartKey} className="py-3 space-y-1">
+                      <div className="flex items-start justify-between">
+                        <div className="min-w-0 flex-1 pr-2">
+                          <p className="text-xs font-bold text-neutral-900 dark:text-white truncate">{item.name}</p>
+                          <p className="text-[10px] text-[var(--theme-primary)] font-black mt-0.5">{formatPrice(itemPrice)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateCartItemQty(-1)}
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200"
+                          >
+                            <Minus className="h-2.5 w-2.5" />
+                          </button>
+                          <span className="text-xs font-extrabold w-4 text-center">{cartItem.quantity}</span>
+                          <button
+                            onClick={() => updateCartItemQty(1)}
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white hover:opacity-90"
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => updateQuantity(itemId, -1)}
-                          className="flex h-5 w-5 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200"
-                        >
-                          <Minus className="h-2.5 w-2.5" />
-                        </button>
-                        <span className="text-xs font-extrabold w-4 text-center">{qty}</span>
-                        <button
-                          onClick={() => updateQuantity(itemId, 1)}
-                          className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white hover:opacity-90"
-                        >
-                          <Plus className="h-2.5 w-2.5" />
-                        </button>
-                      </div>
+                      
+                      {/* Render modifiers if present */}
+                      {Object.values(cartItem.selectedModifiers).length > 0 && (
+                        <div className="pl-2 space-y-0.5 border-l-2 border-neutral-100 dark:border-neutral-800">
+                          {Object.values(cartItem.selectedModifiers).map((modGroup, idx) => (
+                            <div key={idx} className="text-[9px] text-neutral-400 dark:text-neutral-500">
+                              <span className="font-semibold">{modGroup.groupName}:</span>{" "}
+                              {modGroup.options.map(opt => `${opt.name}${opt.price > 0 ? ` (+Rp ${opt.price.toLocaleString("id-ID")})` : ""}`).join(", ")}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
-              <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 space-y-4">
-                <div className="flex items-center justify-between text-xs font-bold mb-2">
-                  <span className="text-neutral-400">Total Pembayaran</span>
-                  <span className="text-[var(--theme-primary)] text-sm font-black">{formatPrice(totalPrice)}</span>
-                </div>
-
-                {/* POS Details Form if basic/pro */}
-                {(restaurant.plan === "basic" || restaurant.plan === "pro") ? (
-                  <div className="space-y-3.5 pt-1">
-                    {/* Makan di Tempat / Bungkus Selector */}
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                        Pilihan Penyajian
-                      </label>
-                      <div className="grid grid-cols-2 gap-2 bg-neutral-100 dark:bg-neutral-800 p-1 rounded-xl">
-                        <button
-                          type="button"
-                          onClick={() => setOrderType("dine_in")}
-                          className={`py-2 text-xs font-bold rounded-lg transition-all ${
-                            orderType === "dine_in"
-                              ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm"
-                              : "text-neutral-500 dark:text-neutral-400"
-                          }`}
-                        >
-                          Makan di Tempat
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setOrderType("takeaway")}
-                          className={`py-2 text-xs font-bold rounded-lg transition-all ${
-                            orderType === "takeaway"
-                              ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm"
-                              : "text-neutral-500 dark:text-neutral-400"
-                          }`}
-                        >
-                          Bungkus
-                        </button>
-                      </div>
+                <div className="space-y-3.5 pt-1">
+                  {/* Makan di Tempat / Bungkus Selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+                      Pilihan Penyajian
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 bg-neutral-100 dark:bg-neutral-800 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setOrderType("dine_in")}
+                        className={`py-2 text-[10px] font-bold rounded-lg transition-all ${
+                          orderType === "dine_in"
+                            ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm"
+                            : "text-neutral-500 dark:text-neutral-400"
+                        }`}
+                      >
+                        Makan di Tempat
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrderType("takeaway")}
+                        className={`py-2 text-[10px] font-bold rounded-lg transition-all ${
+                          orderType === "takeaway"
+                            ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm"
+                            : "text-neutral-500 dark:text-neutral-400"
+                        }`}
+                      >
+                        Bungkus
+                      </button>
                     </div>
+                  </div>
 
+                  {/* Table Number Field (Only if Dine-in) */}
+                  {orderType === "dine_in" && (
                     <div className="space-y-1">
                       <label className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                        Nama Anda
+                        Nomor Meja
                       </label>
                       <Input
                         type="text"
-                        placeholder="Masukkan nama Anda..."
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        className="rounded-xl border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs shadow-sm focus-visible:ring-orange-500 py-4"
+                        placeholder="Contoh: Meja A12"
+                        value={tableNumber || ""}
+                        onChange={(e) => !isTableLocked && setTableNumber(e.target.value)}
+                        disabled={isTableLocked}
+                        className="rounded-xl border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs shadow-sm focus-visible:ring-orange-500 disabled:opacity-85 disabled:bg-neutral-50 dark:disabled:bg-neutral-950"
                       />
                     </div>
+                  )}
 
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        onClick={handleDirectOrder}
-                        disabled={isSubmittingOrder || !customerName.trim()}
-                        className="w-full bg-[var(--theme-primary)] hover:opacity-90 text-white rounded-xl py-5 text-xs font-black shadow-md flex items-center justify-center gap-2"
-                      >
-                        Pesan Langsung (POS)
-                      </Button>
-
-                      {restaurant.whatsappNumber && (
-                        <button
-                          onClick={handleSendOrder}
-                          className="text-[10px] font-bold text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors flex items-center justify-center gap-1 mt-1 py-1"
-                        >
-                          <MessageCircle className="h-3.5 w-3.5 text-green-500" />
-                          Atau Kirim via WhatsApp
-                        </button>
-                      )}
-                    </div>
+                  {/* Customer Name */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+                      Nama Anda
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Masukkan nama Anda..."
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="rounded-xl border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs shadow-sm focus-visible:ring-orange-500"
+                    />
                   </div>
-                ) : (
-                  /* Free plan: WhatsApp Checkout only */
-                  <>
-                    {restaurant.whatsappNumber ? (
-                      <Button
-                        onClick={handleSendOrder}
-                        className="w-full bg-green-500 hover:bg-green-600 text-white rounded-xl py-5 text-xs font-black shadow-md shadow-green-500/20 flex items-center justify-center gap-2"
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        Kirim Pesanan via WhatsApp
-                      </Button>
+
+                  {/* Submit Actions */}
+                  <div className="flex flex-col gap-2 pt-2">
+                    {(restaurant.plan === "basic" || restaurant.plan === "pro") ? (
+                      <>
+                        <Button
+                          onClick={handleDirectOrder}
+                          disabled={isSubmittingOrder || !customerName.trim() || (orderType === "dine_in" && !tableNumber?.trim())}
+                          className="w-full bg-[var(--theme-primary)] hover:opacity-90 text-white rounded-xl py-5 text-xs font-black shadow-md flex items-center justify-center gap-2"
+                        >
+                          Pesan Langsung (POS)
+                        </Button>
+
+                        {restaurant.whatsappNumber && (
+                          <button
+                            onClick={handleSendOrder}
+                            disabled={isSubmittingOrder || !customerName.trim() || (orderType === "dine_in" && !tableNumber?.trim())}
+                            className="text-[10px] font-bold text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors flex items-center justify-center gap-1 mt-1 py-1"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5 text-green-500" />
+                            Atau Kirim via WhatsApp
+                          </button>
+                        )}
+                      </>
                     ) : (
-                      <p className="text-[10px] text-center text-neutral-400">Nomor WhatsApp belum dikonfigurasi</p>
+                      <>
+                        {restaurant.whatsappNumber ? (
+                          <Button
+                            onClick={handleSendOrder}
+                            disabled={isSubmittingOrder || !customerName.trim() || (orderType === "dine_in" && !tableNumber?.trim())}
+                            className="w-full bg-green-500 hover:bg-green-600 text-white rounded-xl py-5 text-xs font-black shadow-md shadow-green-500/20 flex items-center justify-center gap-2"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            Kirim Pesanan via WhatsApp
+                          </Button>
+                        ) : (
+                          <p className="text-[10px] text-center text-neutral-400">Nomor WhatsApp belum dikonfigurasi</p>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
-              </div>
+                  </div>
+                </div>
             </>
           )}
         </DialogContent>
@@ -1060,32 +1318,131 @@ export function PublicMenuContent({ restaurant, items }: PublicMenuContentProps)
                   </p>
                 )}
                 
-                <div className="pt-2 flex items-center justify-between gap-3 border-t border-neutral-100 dark:border-neutral-800">
-                  <span className="text-[10px] font-bold text-neutral-400">Atur Jumlah</span>
-                  {cart[selectedMenuItem.id] ? (
-                    <div className="flex items-center gap-3 bg-neutral-100 dark:bg-neutral-800 rounded-full p-1 border border-neutral-200/50 dark:border-neutral-700">
+                {/* Modifier Groups */}
+                {selectedMenuItem.modifiers && selectedMenuItem.modifiers.length > 0 && (
+                  <div className="py-3 space-y-4 max-h-[30vh] overflow-y-auto border-t border-neutral-100 dark:border-neutral-850">
+                    {selectedMenuItem.modifiers.map((group: any) => {
+                      const isRequired = group.required;
+                      const maxSel = group.maxSelection || 1;
+                      const minSel = group.minSelection || 0;
+                      const selectedOptions = activeModifiers[group.id]?.options || [];
+
+                      return (
+                        <div key={group.id} className="space-y-2">
+                          <div className="flex items-baseline justify-between">
+                            <h4 className="text-xs font-extrabold text-neutral-800 dark:text-neutral-200">
+                              {group.name}
+                              {isRequired && <span className="text-red-500 ml-0.5 font-black">*</span>}
+                            </h4>
+                            <span className="text-[9px] text-neutral-450 font-bold">
+                              {isRequired ? "Wajib" : "Opsional"}
+                              {maxSel > 1 ? ` (maks ${maxSel})` : " (pilih 1)"}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            {group.options.map((option: any, optIdx: number) => {
+                              const isChecked = selectedOptions.some(o => o.name === option.name);
+
+                              const handleOptionSelect = () => {
+                                setActiveModifiers((prev) => {
+                                  const currentGroup = prev[group.id] || { groupName: group.name, options: [] };
+                                  let newOptions = [...currentGroup.options];
+
+                                  if (isChecked) {
+                                    newOptions = newOptions.filter(o => o.name !== option.name);
+                                  } else {
+                                    if (maxSel === 1) {
+                                      newOptions = [{ name: option.name, price: Number(option.price) }];
+                                    } else if (newOptions.length < maxSel) {
+                                      newOptions.push({ name: option.name, price: Number(option.price) });
+                                    } else {
+                                      newOptions.shift();
+                                      newOptions.push({ name: option.name, price: Number(option.price) });
+                                    }
+                                  }
+
+                                  const updated = { ...prev };
+                                  if (newOptions.length === 0) {
+                                    delete updated[group.id];
+                                  } else {
+                                    updated[group.id] = {
+                                      groupName: group.name,
+                                      options: newOptions,
+                                    };
+                                  }
+                                  return updated;
+                                });
+                              };
+
+                              return (
+                                <button
+                                  key={optIdx}
+                                  type="button"
+                                  onClick={handleOptionSelect}
+                                  className={`flex w-full items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
+                                    isChecked
+                                      ? "border-[var(--theme-primary)] bg-[var(--theme-primary)]/5 dark:bg-[var(--theme-primary)]/10"
+                                      : "border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850"
+                                  }`}
+                                >
+                                  <span className="text-xs font-bold text-neutral-700 dark:text-neutral-350">
+                                    {option.name}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    {Number(option.price) > 0 && (
+                                      <span className="text-[10px] font-extrabold text-[var(--theme-primary)]">
+                                        +{formatPrice(Number(option.price))}
+                                      </span>
+                                    )}
+                                    <div className={`h-4 w-4 rounded-md border flex items-center justify-center ${
+                                      isChecked
+                                        ? "bg-[var(--theme-primary)] border-[var(--theme-primary)] text-white"
+                                        : "border-neutral-350 dark:border-neutral-700"
+                                    }`}>
+                                      {isChecked && <Check className="h-3 w-3" />}
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {/* Quantity selector & Add Button */}
+                <div className="pt-4 flex flex-col gap-3 border-t border-neutral-100 dark:border-neutral-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-neutral-400">Atur Jumlah</span>
+                    <div className="flex items-center gap-3 bg-neutral-100 dark:bg-neutral-800 rounded-full p-1 border border-neutral-200/50 dark:border-neutral-750">
                       <button
-                        onClick={() => updateQuantity(selectedMenuItem.id, -1)}
+                        type="button"
+                        onClick={() => setItemQuantity(prev => Math.max(1, prev - 1))}
                         className="flex h-7 w-7 items-center justify-center rounded-full bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 shadow-sm"
                       >
                         <Minus className="h-3 w-3" />
                       </button>
-                      <span className="text-xs font-black w-4 text-center">{cart[selectedMenuItem.id]}</span>
+                      <span className="text-xs font-black w-4 text-center">{itemQuantity}</span>
                       <button
-                        onClick={() => updateQuantity(selectedMenuItem.id, 1)}
+                        type="button"
+                        onClick={() => setItemQuantity(prev => prev + 1)}
                         className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow-sm"
                       >
                         <Plus className="h-3 w-3" />
                       </button>
                     </div>
-                  ) : (
-                    <Button
-                      onClick={() => updateQuantity(selectedMenuItem.id, 1)}
-                      className="bg-[var(--theme-primary)] hover:opacity-90 text-white rounded-xl px-5 h-9 text-xs font-black shadow-md"
-                    >
-                      Tambah ke Keranjang
-                    </Button>
-                  )}
+                  </div>
+
+                  <Button
+                    onClick={handleAddToCartFromModal}
+                    disabled={!isModifierSelectionValid}
+                    className="w-full bg-[var(--theme-primary)] hover:opacity-90 disabled:opacity-50 text-white rounded-xl py-5 text-xs font-black shadow-md flex items-center justify-center gap-1"
+                  >
+                    Tambah ke Keranjang ({formatPrice(modalItemTotalPrice * itemQuantity)})
+                  </Button>
                 </div>
               </div>
             </div>

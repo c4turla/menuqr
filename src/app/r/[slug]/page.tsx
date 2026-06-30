@@ -40,6 +40,7 @@ export default async function PublicMenuPage({ params }: Props) {
         available: item.available,
         featured: item.featured,
         categoryName: item.categoryName,
+        modifiers: item.modifiers,
       }))}
     />
   );

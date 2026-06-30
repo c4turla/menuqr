@@ -72,6 +72,7 @@ export async function createMenuItem(restaurantId: string, data: unknown) {
       imageUrl: parsed.imageUrl,
       available: parsed.available,
       featured: parsed.featured,
+      modifiers: parsed.modifiers,
     })
     .returning();
 
@@ -96,6 +97,7 @@ export async function updateMenuItem(
   if (parsed.imageUrl !== undefined) updateData.imageUrl = parsed.imageUrl;
   if (parsed.available !== undefined) updateData.available = parsed.available;
   if (parsed.featured !== undefined) updateData.featured = parsed.featured;
+  if (parsed.modifiers !== undefined) updateData.modifiers = parsed.modifiers;
 
   const [updated] = await db
     .update(menuItems)

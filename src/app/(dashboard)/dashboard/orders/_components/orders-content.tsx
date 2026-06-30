@@ -33,6 +33,13 @@ interface OrderItem {
   name: string;
   price: string;
   quantity: number;
+  selectedModifiers?: {
+    groupName: string;
+    options: {
+      name: string;
+      price: number;
+    }[];
+  }[];
 }
 
 interface Order {
@@ -703,17 +710,31 @@ export function OrdersContent({ initialRestaurants }: OrdersContentProps) {
                             {order.items.map((item, idx) => (
                               <div
                                 key={idx}
-                                className="flex justify-between items-start text-xs font-medium text-neutral-600 dark:text-neutral-400"
+                                className="space-y-0.5 border-b border-neutral-100/50 dark:border-neutral-800/40 pb-1.5 last:border-0 last:pb-0"
                               >
-                                <span className="pr-2">
-                                  <strong className="text-neutral-950 dark:text-white mr-1.5">
-                                    {item.quantity}x
-                                  </strong>
-                                  {item.name}
-                                </span>
-                                <span className="shrink-0 font-semibold">
-                                  {formatPrice(Number(item.price) * item.quantity)}
-                                </span>
+                                <div className="flex justify-between items-start text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                                  <span className="pr-2">
+                                    <strong className="text-neutral-950 dark:text-white mr-1.5">
+                                      {item.quantity}x
+                                    </strong>
+                                    {item.name}
+                                  </span>
+                                  <span className="shrink-0 font-semibold">
+                                    {formatPrice(Number(item.price) * item.quantity)}
+                                  </span>
+                                </div>
+                                {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                                  <div className="pl-5 space-y-0.5">
+                                    {item.selectedModifiers.map((modGroup, modIdx) => (
+                                      <div key={modIdx} className="text-[10px] text-neutral-405 dark:text-neutral-500">
+                                        <span className="font-semibold text-neutral-500 dark:text-neutral-450">{modGroup.groupName}:</span>{" "}
+                                        <span>
+                                          {modGroup.options.map(opt => `${opt.name}${opt.price > 0 ? ` (+Rp ${opt.price.toLocaleString("id-ID")})` : ""}`).join(", ")}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             ))}
                             <div className="pt-2 border-t border-neutral-200/50 dark:border-neutral-800 flex justify-between items-center text-xs font-extrabold">

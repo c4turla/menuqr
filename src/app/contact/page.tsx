@@ -123,8 +123,8 @@ export default function ContactPage() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5">
             <div className="relative h-9 w-32 shrink-0">
-              <Image src="/lightmode.webp" alt="MenuQR Logo" fill className="object-contain dark:hidden" />
-              <Image src="/darkmode.webp" alt="MenuQR Logo" fill className="object-contain hidden dark:block" />
+              <Image src="/lightmode.webp" alt="MenuQR Logo" fill sizes="128px" className="object-contain dark:hidden" />
+              <Image src="/darkmode.webp" alt="MenuQR Logo" fill sizes="128px" className="object-contain hidden dark:block" />
             </div>
           </Link>
 

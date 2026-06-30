@@ -25,7 +25,8 @@ import {
   Clock,
   Ban,
   Store,
-  LayoutDashboard
+  LayoutDashboard,
+  ArrowUp
 } from "lucide-react";
 import { FadeIn } from "@/components/FadeIn";
 
@@ -292,6 +293,7 @@ export default function LandingPage() {
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [openFaqIdx, setOpenFaqIdx] = useState<number | null>(null);
 
   useEffect(() => {
@@ -302,11 +304,19 @@ export default function LandingPage() {
 
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
+      setShowScrollTop(window.scrollY > 400);
     };
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  };
 
   const handleLangChange = (newLang: Language) => {
     setLang(newLang);
@@ -411,8 +421,8 @@ export default function LandingPage() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 z-50">
             <div className="relative h-9 w-32 shrink-0">
-              <Image src="/lightmode.webp" alt="MenuQR Logo" fill className="object-contain dark:hidden" />
-              <Image src="/darkmode.webp" alt="MenuQR Logo" fill className="object-contain hidden dark:block" />
+              <Image src="/lightmode.webp" alt="MenuQR Logo" fill sizes="128px" className="object-contain dark:hidden" />
+              <Image src="/darkmode.webp" alt="MenuQR Logo" fill sizes="128px" className="object-contain hidden dark:block" />
             </div>
           </Link>
 
@@ -990,8 +1000,8 @@ export default function LandingPage() {
             <div className="col-span-2 lg:col-span-2 space-y-6">
               <Link href="/" className="flex items-center gap-2.5">
                 <div className="relative h-10 w-36 shrink-0">
-                  <Image src="/lightmode.webp" alt="MenuQR Logo" fill className="object-contain dark:hidden" />
-                  <Image src="/darkmode.webp" alt="MenuQR Logo" fill className="object-contain hidden dark:block" />
+                  <Image src="/lightmode.webp" alt="MenuQR Logo" fill sizes="144px" className="object-contain dark:hidden" />
+                  <Image src="/darkmode.webp" alt="MenuQR Logo" fill sizes="144px" className="object-contain hidden dark:block" />
                 </div>
               </Link>
               <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium max-w-xs leading-relaxed">
@@ -1047,6 +1057,16 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 p-3.5 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-xl hover:shadow-orange-500/30 transition-all duration-300 transform hover:-translate-y-1 active:translate-y-0 active:scale-95 animate-in fade-in zoom-in-75 duration-200 border border-orange-400/20"
+          aria-label="Scroll to Top"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
+      )}
     </div>
   );
 }

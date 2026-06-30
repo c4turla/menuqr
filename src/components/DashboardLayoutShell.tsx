@@ -22,6 +22,7 @@ export function DashboardLayoutShell({ children, planTier }: DashboardLayoutShel
     if (pathname.startsWith("/dashboard/restaurants")) return "Outlet / Restaurants";
     if (pathname.startsWith("/dashboard/categories")) return "Kategori / Categories";
     if (pathname.startsWith("/dashboard/menu")) return "Menu Makanan / Menus";
+    if (pathname.startsWith("/dashboard/reports")) return "Laporan / Reports";
     if (pathname.startsWith("/dashboard/billing")) return "Tagihan / Billing";
     if (pathname.startsWith("/dashboard/analytics")) return "Analitik / Analytics";
     if (pathname.startsWith("/dashboard/domain")) return "Domain";

@@ -146,8 +146,8 @@ function ResetPasswordForm() {
         <CardHeader className="space-y-4 pt-8 pb-6 text-center">
           {/* Brand Logo */}
           <div className="mx-auto relative h-16 w-48 shrink-0">
-            <Image src="/lightmode.webp" alt="MenuQR Logo" fill className="object-contain dark:hidden" />
-            <Image src="/darkmode.webp" alt="MenuQR Logo" fill className="object-contain hidden dark:block" />
+            <Image src="/lightmode.webp" alt="MenuQR Logo" fill sizes="192px" className="object-contain dark:hidden" />
+            <Image src="/darkmode.webp" alt="MenuQR Logo" fill sizes="192px" className="object-contain hidden dark:block" />
           </div>
           <div className="space-y-1.5">
             <CardTitle className="text-2xl font-black tracking-tight text-neutral-900 dark:text-white">
