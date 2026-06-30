@@ -155,6 +155,7 @@ const translations = {
     footerCompany: "Perusahaan",
     footerTerms: "Syarat Ketentuan",
     footerPrivacy: "Privasi",
+    footerRefund: "Kebijakan Refund",
     footerContact: "Hubungi Kami",
     footerText: "Dibuat dengan ❤️ untuk UMKM Kuliner Indonesia.",
   },
@@ -279,6 +280,7 @@ const translations = {
     footerCompany: "Company",
     footerTerms: "Terms of Service",
     footerPrivacy: "Privacy Policy",
+    footerRefund: "Refund Policy",
     footerContact: "Contact",
     footerText: "Made with ❤️ for Culinary SMEs.",
   }
@@ -1027,6 +1029,7 @@ export default function LandingPage() {
               <ul className="space-y-3">
                 <li><Link href="/terms" className="text-sm text-neutral-500 hover:text-orange-500 font-medium transition-colors">{t.footerTerms}</Link></li>
                 <li><Link href="/privacy" className="text-sm text-neutral-500 hover:text-orange-500 font-medium transition-colors">{t.footerPrivacy}</Link></li>
+                <li><Link href="/refund" className="text-sm text-neutral-500 hover:text-orange-500 font-medium transition-colors">{t.footerRefund}</Link></li>
                 <li><Link href="/contact" className="text-sm text-neutral-500 hover:text-orange-500 font-medium transition-colors">{t.footerContact}</Link></li>
               </ul>
             </div>
