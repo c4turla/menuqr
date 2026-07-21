@@ -8,6 +8,7 @@ export const subscriptions = pgTable("subscriptions", {
     .references(() => restaurants.id, { onDelete: "cascade" }),
   provider: text("provider"),
   externalSubscriptionId: text("external_subscription_id"),
+  paymentId: text("payment_id"), // latest payment that activated this subscription
   status: text("status"),
   currentPeriodStart: timestamp("current_period_start"),
   currentPeriodEnd: timestamp("current_period_end"),
