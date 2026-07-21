@@ -241,41 +241,36 @@ export async function handlePaymentCompleted(data: {
   try {
     const restaurant = await db.query.restaurants.findFirst({
       where: eq(restaurants.id, payment.restaurantId),
-      with: {
-        owner: true, // we assume you have relation set up, if not we will fetch user directly
-      }
     });
 
-    let owner = restaurant?.owner;
-    // Fallback if relation is not set up
-    if (!owner && restaurant?.ownerId) {
-      owner = await db.query.users.findFirst({
+    if (restaurant?.ownerId) {
+      const owner = await db.query.user.findFirst({
         where: eq(users.id, restaurant.ownerId)
       });
-    }
 
-    if (owner?.email) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      
-      const html = getPaymentSuccessEmailHtml({
-        userName: owner.name || "Pelanggan",
-        orderId: payment.orderId,
-        planName: payment.plan,
-        billingPeriod: payment.billingPeriod,
-        amount: payment.amount,
-        periodEnd: periodEnd.toLocaleDateString("id-ID", {
-          day: "numeric",
-          month: "long",
-          year: "numeric"
-        }),
-        appUrl
-      });
+      if (owner?.email) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        
+        const html = getPaymentSuccessEmailHtml({
+          userName: owner.name || "Pelanggan",
+          orderId: payment.orderId,
+          planName: payment.plan,
+          billingPeriod: payment.billingPeriod,
+          amount: payment.amount,
+          periodEnd: periodEnd.toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "long",
+            year: "numeric"
+          }),
+          appUrl
+        });
 
-      await sendEmail({
-        to: owner.email,
-        subject: `[MenuQR] Pembayaran Berhasil - Order ${payment.orderId}`,
-        html,
-      });
+        await sendEmail({
+          to: owner.email,
+          subject: `[MenuQR] Pembayaran Berhasil - Order ${payment.orderId}`,
+          html,
+        });
+      }
     }
   } catch (error) {
     console.error("[Webhook] Failed to send success email:", error);
@@ -302,7 +297,7 @@ export async function handlePaymentFailed(data: {
       });
 
       if (restaurant?.ownerId) {
-        const owner = await db.query.users.findFirst({
+        const owner = await db.query.user.findFirst({
           where: eq(users.id, restaurant.ownerId)
         });
 
@@ -349,7 +344,7 @@ export async function handlePaymentExpired(data: {
       });
 
       if (restaurant?.ownerId) {
-        const owner = await db.query.users.findFirst({
+        const owner = await db.query.user.findFirst({
           where: eq(users.id, restaurant.ownerId)
         });
 
