@@ -1,3 +1,79 @@
+export function getPaymentInvoiceEmailHtml(params: {
+  userName: string;
+  orderId: string;
+  planName: string;
+  billingPeriod: string;
+  amount: number;
+  paymentLinkUrl: string;
+  expiresAt: string;
+  appUrl: string;
+}) {
+  const formattedAmount = new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(params.amount);
+
+  const planLabel = params.planName.toUpperCase();
+  const periodLabel = params.billingPeriod === "yearly" ? "Tahunan" : "Bulanan";
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+      <div style="text-align: center; padding: 20px 0;">
+        <img src="cid:logo" alt="MenuQR Logo" style="height: 40px; margin-bottom: 10px;" />
+        <h2 style="color: #3b82f6; margin: 0;">Tagihan Pembayaran</h2>
+      </div>
+      
+      <div style="background-color: #f9fafb; padding: 30px; border-radius: 8px; border: 1px solid #e5e7eb;">
+        <p>Halo <strong>${params.userName}</strong>,</p>
+        <p>Berikut adalah detail tagihan pembayaran Anda untuk langganan MenuQR. Silakan selesaikan pembayaran sebelum batas waktu yang ditentukan.</p>
+        
+        <div style="margin: 25px 0; padding: 20px; background-color: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+          <h3 style="margin-top: 0; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">Detail Tagihan</h3>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Order ID</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold;">${params.orderId}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Paket Langganan</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold;">${planLabel} - ${periodLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Total Tagihan</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #3b82f6; font-size: 18px;">${formattedAmount}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Metode Pembayaran</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold;">QRIS</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Batas Waktu</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #ef4444;">${params.expiresAt}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${params.paymentLinkUrl}" style="background-color: #3b82f6; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">Bayar Sekarang</a>
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background-color: #fef3c7; border-radius: 6px; border: 1px solid #fde68a;">
+          <p style="margin: 0; font-size: 13px; color: #92400e;">
+            <strong>Penting:</strong> Tagihan ini akan kedaluwarsa pada <strong>${params.expiresAt}</strong>. Jika melewati batas waktu, Anda perlu membuat tagihan baru dari dashboard.
+          </p>
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #9ca3af;">
+        <p>Email ini dikirim otomatis oleh sistem MenuQR. Mohon jangan balas ke email ini.</p>
+        <p>&copy; ${new Date().getFullYear()} MenuQR. All rights reserved.</p>
+      </div>
+    </div>
+  `;
+}
+
 export function getPaymentSuccessEmailHtml(params: {
   userName: string;
   orderId: string;

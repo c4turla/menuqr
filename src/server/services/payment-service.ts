@@ -8,6 +8,7 @@ import { users } from "@/db/schema/users";
 import { eq } from "drizzle-orm";
 import { sendEmail } from "@/lib/mail";
 import { 
+  getPaymentInvoiceEmailHtml,
   getPaymentSuccessEmailHtml, 
   getPaymentFailedEmailHtml, 
   getPaymentExpiredEmailHtml 
@@ -66,7 +67,7 @@ export async function createPayment(
   };
 
   try {
-    console.log("[SumoPod] Creating payment:", { orderId, amount, plan, billingPeriod, baseUrl });
+    console.log("[MenuQR] Creating payment:", { orderId, amount, plan, billingPeriod, baseUrl });
     const response = await fetch(`${baseUrl}/api/v1/payments`, {
       method: "POST",
       headers: {
@@ -86,14 +87,14 @@ export async function createPayment(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("[SumoPod] API error:", response.status, errorText);
+      console.error("[MenuQR] API error:", response.status, errorText);
       return { error: `Gagal membuat pembayaran (${response.status}). Silakan coba lagi.` };
     }
 
     data = await response.json();
-    console.log("[SumoPod] API response:", JSON.stringify(data));
+    console.log("[MenuQR] API response:", JSON.stringify(data));
   } catch (error) {
-    console.error("[SumoPod] Network/fetch error:", error);
+    console.error("[MenuQR] Network/fetch error:", error);
     return { error: "Gagal menghubungi payment gateway. Silakan coba lagi." };
   }
 
@@ -112,10 +113,58 @@ export async function createPayment(
       paymentLinkUrl: data.payment_link_url,
       expiresAt: data.expires_at ? new Date(data.expires_at) : null,
     });
-    console.log("[SumoPod] Payment saved to DB:", orderId);
+    console.log("[MenuQR] Payment saved to DB:", orderId);
   } catch (dbError) {
-    console.error("[SumoPod] Database insert error:", dbError);
+    console.error("[MenuQR] Database insert error:", dbError);
     return { error: "Pembayaran dibuat tapi gagal menyimpan ke database." };
+  }
+
+  // Step 3: Send invoice email to restaurant owner
+  try {
+    const restaurant = await db.query.restaurants.findFirst({
+      where: eq(restaurants.id, restaurantId),
+    });
+
+    if (restaurant?.ownerId) {
+      const owner = await db.query.user.findFirst({
+        where: eq(users.id, restaurant.ownerId),
+      });
+
+      if (owner?.email) {
+        const expiresAt = data.expires_at
+          ? new Date(data.expires_at).toLocaleString("id-ID", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZoneName: "short",
+            })
+          : "1 jam dari sekarang";
+
+        const html = getPaymentInvoiceEmailHtml({
+          userName: owner.name || "Pelanggan",
+          orderId,
+          planName: plan,
+          billingPeriod,
+          amount,
+          paymentLinkUrl: data.payment_link_url,
+          expiresAt,
+          appUrl,
+        });
+
+        await sendEmail({
+          to: owner.email,
+          subject: `[MenuQR] Tagihan Pembayaran - Order ${orderId}`,
+          html,
+        });
+
+        console.log("[MenuQR] Invoice email sent to:", owner.email);
+      }
+    }
+  } catch (emailError) {
+    // Jangan gagalkan proses jika email gagal terkirim
+    console.error("[MenuQR] Failed to send invoice email:", emailError);
   }
 
   return {
@@ -181,15 +230,15 @@ export async function handlePaymentCompleted(data: {
 
   // Calculate subscription period
   const now = new Date();
-  
+
   // Use existing currentPeriodEnd if it's in the future, otherwise use now
-  const baseStartDate = 
+  const baseStartDate =
     existingSub?.currentPeriodEnd && existingSub.currentPeriodEnd > now
       ? new Date(existingSub.currentPeriodEnd)
       : now;
 
   const periodEnd = new Date(baseStartDate);
-  
+
   if (payment.billingPeriod === "yearly") {
     periodEnd.setFullYear(periodEnd.getFullYear() + 1);
   } else {
@@ -206,8 +255,8 @@ export async function handlePaymentCompleted(data: {
         paymentId: payment.id,
         status: "active",
         // Do not update start date if they are just extending an active sub
-        currentPeriodStart: existingSub.currentPeriodEnd && existingSub.currentPeriodEnd > now 
-          ? existingSub.currentPeriodStart 
+        currentPeriodStart: existingSub.currentPeriodEnd && existingSub.currentPeriodEnd > now
+          ? existingSub.currentPeriodStart
           : now,
         currentPeriodEnd: periodEnd,
       })
@@ -250,7 +299,7 @@ export async function handlePaymentCompleted(data: {
 
       if (owner?.email) {
         const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-        
+
         const html = getPaymentSuccessEmailHtml({
           userName: owner.name || "Pelanggan",
           orderId: payment.orderId,
