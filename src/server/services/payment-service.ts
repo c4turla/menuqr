@@ -40,7 +40,7 @@ export async function createPayment(
 ): Promise<{ paymentLinkUrl: string; orderId: string } | { error: string }> {
   const apiKey = process.env.SUMOPOD_API_KEY;
   const baseUrl = process.env.SUMOPOD_BASE_URL || "https://api-pay-sandbox.sumopod.com";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   if (!apiKey) {
     return { error: "Payment gateway belum dikonfigurasi" };
@@ -249,7 +249,7 @@ export async function handlePaymentCompleted(data: {
       });
 
       if (owner?.email) {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
         
         const html = getPaymentSuccessEmailHtml({
           userName: owner.name || "Pelanggan",
@@ -302,7 +302,7 @@ export async function handlePaymentFailed(data: {
         });
 
         if (owner?.email) {
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+          const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
           const html = getPaymentFailedEmailHtml({
             userName: owner.name || "Pelanggan",
             orderId: payment[0].orderId,
@@ -349,7 +349,7 @@ export async function handlePaymentExpired(data: {
         });
 
         if (owner?.email) {
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+          const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
           const html = getPaymentExpiredEmailHtml({
             userName: owner.name || "Pelanggan",
             orderId: payment[0].orderId,
